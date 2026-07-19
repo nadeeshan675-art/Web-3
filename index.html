@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SL Business Pro - Enterprise Management</title>
+    <title>SL Business Pro - Enterprise v3</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel CDNs -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- SheetJS for Excel Export -->
-    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #printable-invoice, #printable-invoice * { visibility: visible; }
+            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; color: black !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
     <div id="root"></div>
@@ -19,19 +25,10 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- IN-MEMORY/LOCAL STORAGE SIMULATED DATABASE ---
-        // To make it run natively on GitHub Pages with full features instantly!
         const initDB = () => {
             const data = localStorage.getItem('sl_biz_db');
             if (data) return JSON.parse(data);
-            
-            return {
-                companies: [],
-                employees: [],
-                customers: [],
-                products: [],
-                orders: []
-            };
+            return { companies: [], employees: [], customers: [], products: [], orders: [] };
         };
 
         const saveDB = (dbData) => {
@@ -43,12 +40,13 @@
             const [user, setUser] = useState(JSON.parse(localStorage.getItem('sl_user')) || null);
             const [isRegister, setIsRegister] = useState(false);
             const [view, setView] = useState('dashboard');
+            const [selectedInvoice, setSelectedInvoice] = useState(null);
             
             // Forms
             const [authForm, setAuthForm] = useState({ username: '', password: '', fullName: '', companyName: '', phone: '', email: '' });
-            const [custForm, setCustForm] = useState({ name: '', phone: '', email: '', address: '', notes: '', outstanding: 0 });
-            const [prodForm, setProdForm] = useState({ itemName: '', itemCode: '', category: '', costPrice: 0, sellingPrice: 0, quantity: 0, barcode: '', lowStock: 5 });
-            const [orderForm, setOrderForm] = useState({ customerId: '', itemId: '', quantity: 1, paymentMethod: 'Cash' });
+            const [custForm, setCustForm] = useState({ name: '', phone: '', email: '', address: '', outstanding: 0 });
+            const [prodForm, setProdForm] = useState({ itemName: '', itemCode: '', costPrice: 0, sellingPrice: 0, quantity: 0, lowStock: 5 });
+            const [orderForm, setOrderForm] = useState({ customerId: '', itemId: '', quantity: 1, discountPercent: 0 });
             const [empForm, setEmpForm] = useState({ fullName: '', username: '', password: '' });
 
             const handleRegister = (e) => {
@@ -61,44 +59,42 @@
                     phone: authForm.phone,
                     email: authForm.email,
                     username: authForm.username,
-                    password: authForm.password // In-browser secure validation
+                    password: authForm.password
                 };
-                
                 const updatedDB = { ...db, companies: [...db.companies, newCompany] };
-                setDb(updatedDB);
-                saveDB(updatedDB);
-                alert(`🎉 ලියාපදිංචිය සාර්ථකයි!\nCompany Code: ${companyCode}\nදැන් Login වන්න.`);
+                setDb(updatedDB); saveDB(updatedDB);
+                alert(`🎉 ව්‍යාපාර ලියාපදිංචිය සාර්ථකයි!\nCompany Code: ${companyCode}`);
                 setIsRegister(false);
             };
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                // Check Admin
+                // 1. Admin Login Verification
                 const admin = db.companies.find(c => c.username === authForm.username && c.password === authForm.password);
                 if (admin) {
-                    const session = { role: 'ADMIN', name: admin.full_name, companyCode: admin.company_code, companyName: admin.company_name };
-                    localStorage.setItem('sl_user', JSON.stringify(session));
-                    setUser(session);
+                    const sessionData = { role: 'ADMIN', name: admin.full_name, companyCode: admin.company_code, companyName: admin.company_name };
+                    setUser(sessionData);
+                    localStorage.setItem('sl_user', JSON.stringify(sessionData));
                     return;
                 }
-                // Check Employee
+                
+                // 2. Employee Login Verification (Admin දුන් තොරතුරු වලින්)
                 const emp = db.employees.find(e => e.username === authForm.username && e.password === authForm.password);
                 if (emp) {
-                    const session = { role: 'EMPLOYEE', name: emp.full_name, companyCode: emp.company_code, companyName: 'Enterprise' };
-                    localStorage.setItem('sl_user', JSON.stringify(session));
-                    setUser(session);
+                    const sessionData = { role: 'EMPLOYEE', name: emp.fullName, companyCode: emp.company_code, companyName: 'Staff Portal' };
+                    setUser(sessionData);
+                    localStorage.setItem('sl_user', JSON.stringify(sessionData));
                     return;
                 }
-                alert('Invalid Username or Password!');
+                alert('පරිශීලක නාමය හෝ රහස්පදය වැරදියි! කරුණාකර නැවත උත්සාහ කරන්න.');
             };
 
             const handleAddCustomer = (e) => {
                 e.preventDefault();
                 const newCust = { id: Date.now(), company_code: user.companyCode, ...custForm };
                 const updatedDB = { ...db, customers: [...db.customers, newCust] };
-                setDb(updatedDB);
-                saveDB(updatedDB);
-                alert('Customer Added Successfully!');
+                setDb(updatedDB); saveDB(updatedDB);
+                alert('පාරිභෝගිකයා සාර්ථකව ඇතුළත් කළා!');
                 setView('customers');
             };
 
@@ -106,9 +102,8 @@
                 e.preventDefault();
                 const newProd = { id: Date.now(), company_code: user.companyCode, ...prodForm };
                 const updatedDB = { ...db, products: [...db.products, newProd] };
-                setDb(updatedDB);
-                saveDB(updatedDB);
-                alert('Product Added Successfully!');
+                setDb(updatedDB); saveDB(updatedDB);
+                alert('භාණ්ඩය සාර්ථකව ඇතුළත් කළා!');
                 setView('products');
             };
 
@@ -117,29 +112,40 @@
                 const cust = db.customers.find(c => c.id == orderForm.customerId);
                 const prod = db.products.find(p => p.id == orderForm.itemId);
                 
-                if (prod.quantity < orderForm.quantity) {
-                    alert('ප්‍රමාණවත් තොග නොමැත (Low Stock)!');
+                if (!prod || prod.quantity < orderForm.quantity) {
+                    alert('තොග ප්‍රමාණවත් නැත!');
                     return;
                 }
+
+                const grossAmount = orderForm.quantity * prod.sellingPrice;
+                const discount = (grossAmount * (orderForm.discountPercent || 0)) / 100;
+                const finalAmount = grossAmount - discount;
+                const costTotal = orderForm.quantity * prod.costPrice;
+                const calculatedProfit = finalAmount - costTotal;
 
                 const newOrder = {
                     id: Date.now(),
                     company_code: user.companyCode,
-                    order_number: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
+                    order_number: 'INV-' + Math.floor(100000 + Math.random() * 900000),
                     customer_name: cust.name,
-                    item_name: prod.item_name,
+                    customer_phone: cust.phone,
+                    item_name: prod.itemName,
                     item_id: prod.id,
                     quantity: parseInt(orderForm.quantity),
-                    total_amount: orderForm.quantity * prod.selling_price,
+                    selling_price: parseFloat(prod.sellingPrice),
+                    discount_rate: orderForm.discountPercent,
+                    discount_amount: discount,
+                    total_amount: finalAmount,
+                    profit: calculatedProfit,
                     employee_name: user.name,
-                    status: 'Pending',
+                    status: 'Pending', // Default Pending until Admin Approves
+                    notified: false, // For Employee Notification workflow
                     date: new Date().toLocaleDateString()
                 };
 
                 const updatedDB = { ...db, orders: [...db.orders, newOrder] };
-                setDb(updatedDB);
-                saveDB(updatedDB);
-                alert('Order Placed! Waiting for Admin Approval.');
+                setDb(updatedDB); saveDB(updatedDB);
+                alert('ඇණවුම සාර්ථකව යොමු කළා! Admin අනුමැතිය ලැබුණු පසු ඔබට Notification එකක් ලැබෙනු ඇත.');
                 setView('orders');
             };
 
@@ -147,9 +153,8 @@
                 e.preventDefault();
                 const newEmp = { id: Date.now(), company_code: user.companyCode, ...empForm };
                 const updatedDB = { ...db, employees: [...db.employees, newEmp] };
-                setDb(updatedDB);
-                saveDB(updatedDB);
-                alert('Employee Account Created!');
+                setDb(updatedDB); saveDB(updatedDB);
+                alert(`සේවක ගිණුම සාර්ථකව සෑදුවා!\nUsername: ${empForm.username}`);
                 setView('employees');
             };
 
@@ -157,26 +162,26 @@
                 const updatedOrders = db.orders.map(o => {
                     if (o.id === orderId) {
                         if (newStatus === 'Approved') {
-                            // Automatically Deduct Stock
                             db.products = db.products.map(p => {
                                 if (p.id === o.item_id) return { ...p, quantity: p.quantity - o.quantity };
                                 return p;
                             });
                         }
-                        return { ...o, status: newStatus };
+                        return { ...o, status: newStatus, notified: false }; // Mark for notification trigger
                     }
                     return o;
                 });
                 const updatedDB = { ...db, orders: updatedOrders };
-                setDb(updatedDB);
-                saveDB(updatedDB);
+                setDb(updatedDB); saveDB(updatedDB);
             };
 
-            const exportExcel = () => {
-                const ws = XLSX.utils.json_to_sheet(myOrders);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Sales Report");
-                XLSX.writeFile(wb, "Business_Report.xlsx");
+            const dismissNotification = (orderId) => {
+                const updatedOrders = db.orders.map(o => {
+                    if (o.id === orderId) return { ...o, notified: true };
+                    return o;
+                });
+                const updatedDB = { ...db, orders: updatedOrders };
+                setDb(updatedDB); saveDB(updatedDB);
             };
 
             const logout = () => {
@@ -184,33 +189,37 @@
                 setUser(null);
             };
 
-            // Filter data safe for multi-company isolation
             const myCustomers = db.customers.filter(c => c.company_code === user?.companyCode);
             const myProducts = db.products.filter(p => p.company_code === user?.companyCode);
             const myOrders = db.orders.filter(o => o.company_code === user?.companyCode);
             const myEmployees = db.employees.filter(e => e.company_code === user?.companyCode);
 
+            // Employee Notifications Filter (Orders approved/rejected but not dismissed by this employee)
+            const myNotifications = myOrders.filter(o => o.employee_name === user?.name && o.status !== 'Pending' && o.notified === false);
+
+            const totalRevenue = myOrders.reduce((sum, o) => o.status === 'Approved' ? sum + o.total_amount : sum, 0);
+            const totalProfit = myOrders.reduce((sum, o) => o.status === 'Approved' ? sum + o.profit : sum, 0);
+
             if (!user) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
                         <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-slate-800">
-                            <h2 className="text-3xl font-bold text-center text-blue-500 mb-6">{isRegister ? 'Business Register' : 'SL Business Sign In'}</h2>
+                            <h2 className="text-3xl font-bold text-center text-blue-500 mb-6">{isRegister ? 'Business Registration' : 'SL Business Pro'}</h2>
                             <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-4">
                                 {isRegister && (
                                     <>
                                         <input type="text" placeholder="Full Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, fullName: e.target.value})} required />
                                         <input type="text" placeholder="Business Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, companyName: e.target.value})} required />
-                                        <input type="text" placeholder="Phone" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, phone: e.target.value})} />
                                     </>
                                 )}
-                                <input type="text" placeholder="Username" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, username: e.target.value})} required />
-                                <input type="password" placeholder="Password" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, password: e.target.value})} required />
+                                <input type="text" placeholder="Username (පරිශීලක නාමය)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, username: e.target.value})} required />
+                                <input type="password" placeholder="Password (රහස්පදය)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setAuthForm({...authForm, password: e.target.value})} required />
                                 <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition">
-                                    {isRegister ? 'Create System Account' : 'Secure Login'}
+                                    {isRegister ? 'ලියාපදිංචි වන්න' : 'ඇතුළු වන්න (Login)'}
                                 </button>
                             </form>
-                            <p className="mt-4 text-center text-sm text-slate-400 cursor-pointer hover:text-blue-400" onClick={() => setIsRegister(!isRegister)}>
-                                {isRegister ? 'Already Registered? Login' : 'New Business? Create Live Account'}
+                            <p className="mt-4 text-center text-sm text-slate-400 cursor-pointer" onClick={() => setIsRegister(!isRegister)}>
+                                {isRegister ? 'ගිණුමක් තිබේද? Login' : 'නව ව්‍යාපාරයක්ද? Register'}
                             </p>
                         </div>
                     </div>
@@ -219,84 +228,142 @@
 
             return (
                 <div className="min-h-screen flex flex-col md:flex-row bg-slate-950">
-                    {/* Mobile Friendly Dashboard Header/Sidebar */}
-                    <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between">
+                    <aside className="no-print w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between">
                         <div>
                             <div className="mb-8">
                                 <h1 className="text-xl font-bold text-blue-500">{user.companyName}</h1>
-                                <p className="text-xs text-slate-500">ID: {user.companyCode} ({user.role})</p>
+                                <p className="text-xs text-slate-500">Code: {user.companyCode} | Role: {user.role}</p>
+                                <p className="text-xs text-slate-300 mt-1">User: {user.name}</p>
                             </div>
                             <nav className="space-y-2">
-                                <button onClick={() => setView('dashboard')} className={`w-full text-left p-3 rounded-xl ${view === 'dashboard' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📊 Dashboard</button>
-                                <button onClick={() => setView('orders')} className={`w-full text-left p-3 rounded-xl ${view === 'orders' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📦 Orders ({myOrders.length})</button>
-                                <button onClick={() => setView('products')} className={`w-full text-left p-3 rounded-xl ${view === 'products' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>🛒 Inventory Stock</button>
-                                <button onClick={() => setView('customers')} className={`w-full text-left p-3 rounded-xl ${view === 'customers' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👥 Customers</button>
-                                {user.role === 'ADMIN' && <button onClick={() => setView('employees')} className={`w-full text-left p-3 rounded-xl ${view === 'employees' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👔 Employees</button>}
+                                <button onClick={() => { setView('dashboard'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'dashboard' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📊 Dashboard</button>
+                                <button onClick={() => { setView('orders'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'orders' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📦 Invoices & Bills</button>
+                                <button onClick={() => { setView('products'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'products' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>🛒 Stock Inventory</button>
+                                <button onClick={() => { setView('customers'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'customers' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👥 Customers</button>
+                                {user.role === 'ADMIN' && (
+                                    <button onClick={() => { setView('employees'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'employees' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👔 Staff Management</button>
+                                )}
                             </nav>
                         </div>
                         <button onClick={logout} className="mt-8 bg-red-600/20 text-red-400 p-3 rounded-xl font-bold hover:bg-red-600 hover:text-white transition">Logout</button>
                     </aside>
 
-                    {/* Main Interface Window */}
                     <main className="flex-1 p-6 md:p-10 overflow-x-hidden">
                         
-                        {view === 'dashboard' && (
-                            <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-3xl font-bold">Analytics Engine</h2>
-                                    <button onClick={exportExcel} className="bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm shadow">📊 Export Financial Report (Excel)</button>
+                        {/* EMPLOYEE NOTIFICATION BAR */}
+                        {user.role === 'EMPLOYEE' && myNotifications.length > 0 && (
+                            <div className="mb-6 space-y-2 no-print">
+                                {myNotifications.map(n => (
+                                    <div key={n.id} className="bg-emerald-600 text-white p-4 rounded-xl shadow flex justify-between items-center animate-bounce">
+                                        <span>🔔 ඔබේ ඇණවුම <b>{n.order_number}</b> (Rs. {n.total_amount}) සභාපති (Admin) විසින් <b>{n.status}</b> කරන ලදී!</span>
+                                        <button onClick={() => dismissNotification(n.id)} className="bg-emerald-800 text-xs px-3 py-1 rounded-lg">Okay</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* INVOICE MODAL VIEW */}
+                        {selectedInvoice && (
+                            <div id="printable-invoice" className="bg-white text-black p-8 rounded-2xl max-w-md mx-auto my-4 shadow-xl border border-gray-300">
+                                <div className="text-center border-b pb-4 mb-4">
+                                    <h2 className="text-2xl font-bold uppercase tracking-wider">{user.companyName}</h2>
+                                    <p className="text-xs text-gray-600">Official Retail Invoice Receipt</p>
+                                    <p className="text-sm font-mono mt-1">Inv No: {selectedInvoice.order_number}</p>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
-                                        <p className="text-slate-400 text-sm">Approved Net Revenue</p>
-                                        <h3 className="text-3xl font-bold text-emerald-400 mt-2">Rs. {myOrders.reduce((sum, o) => o.status === 'Approved' ? sum + o.total_amount : sum, 0).toFixed(2)}</h3>
+                                <div className="text-sm space-y-1 mb-4">
+                                    <p><b>Date:</b> {selectedInvoice.date}</p>
+                                    <p><b>Customer:</b> {selectedInvoice.customer_name}</p>
+                                    <p><b>Contact:</b> {selectedInvoice.customer_phone}</p>
+                                    <p><b>Billed By:</b> {selectedInvoice.employee_name}</p>
+                                </div>
+                                <table className="w-full text-sm border-t border-b py-2 mb-4">
+                                    <thead>
+                                        <tr className="border-b text-gray-700">
+                                            <th className="text-left py-1">Description</th>
+                                            <th className="text-center py-1">Qty</th>
+                                            <th className="text-right py-1">Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="py-2">{selectedInvoice.item_name}</td>
+                                            <td className="text-center py-2">{selectedInvoice.quantity}</td>
+                                            <td className="text-right py-2">Rs. {selectedInvoice.selling_price.toFixed(2)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div className="text-right text-sm space-y-1">
+                                    {selectedInvoice.discount_rate > 0 && (
+                                        <p className="text-gray-600">Discount ({selectedInvoice.discount_rate}%): -Rs. {selectedInvoice.discount_amount.toFixed(2)}</p>
+                                    )}
+                                    <p className="text-lg font-bold border-t pt-1">Net Total: Rs. {selectedInvoice.total_amount.toFixed(2)}</p>
+                                </div>
+                                <div className="text-center mt-8 text-xs text-gray-500 italic border-t pt-4">
+                                    Thank You for Your Business!
+                                </div>
+                                <div className="mt-6 flex space-x-2 no-print">
+                                    <button onClick={() => window.print()} className="flex-1 bg-blue-600 text-white p-2 rounded-xl font-bold">Print / Save PDF</button>
+                                    <button onClick={() => setSelectedInvoice(null)} className="bg-gray-300 text-black p-2 rounded-xl px-4">Close</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {!selectedInvoice && view === 'dashboard' && (
+                            <div>
+                                <h2 className="text-3xl font-bold mb-6">Business Dashboard ({user.role})</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                        <p className="text-slate-400 text-sm">Approved Revenue</p>
+                                        <h3 className="text-3xl font-bold text-emerald-400 mt-2">Rs. {totalRevenue.toFixed(2)}</h3>
                                     </div>
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
-                                        <p className="text-slate-400 text-sm">Pending Orders Balance</p>
-                                        <h3 className="text-3xl font-bold text-amber-400 mt-2">Rs. {myOrders.reduce((sum, o) => o.status === 'Pending' ? sum + o.total_amount : sum, 0).toFixed(2)}</h3>
-                                    </div>
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
-                                        <p className="text-slate-400 text-sm">Low Stock Alert Items</p>
+                                    {user.role === 'ADMIN' && (
+                                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                            <p className="text-slate-400 text-sm">Net Profit Summary</p>
+                                            <h3 className="text-3xl font-bold text-blue-400 mt-2">Rs. {totalProfit.toFixed(2)}</h3>
+                                        </div>
+                                    )}
+                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                        <p className="text-slate-400 text-sm">Low Stock Alert</p>
                                         <h3 className="text-3xl font-bold text-red-400 mt-2">{myProducts.filter(p => p.quantity <= p.lowStock).length}</h3>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {view === 'orders' && (
+                        {!selectedInvoice && view === 'orders' && (
                             <div>
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Orders Log</h2>
-                                    <button onClick={() => setView('add_order')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Add Order</button>
+                                    <h2 className="text-2xl font-bold">බිල්පත් ලේඛනය (Invoices Log)</h2>
+                                    <button onClick={() => setView('add_order')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Create Invoice</button>
                                 </div>
                                 <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead className="bg-slate-800 border-b border-slate-700">
                                             <tr>
-                                                <th className="p-4">Order Code</th>
+                                                <th className="p-4">Invoice No</th>
                                                 <th className="p-4">Customer</th>
-                                                <th className="p-4">Product Name</th>
-                                                <th className="p-4">Total Amount</th>
+                                                <th className="p-4">Amount</th>
+                                                <th className="p-4">Billed By</th>
                                                 <th className="p-4">Status</th>
-                                                {user.role === 'ADMIN' && <th className="p-4">Workflow Actions</th>}
+                                                <th className="p-4">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {myOrders.map(o => (
                                                 <tr key={o.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                                                    <td className="p-4 text-blue-400 font-mono">{o.order_number}</td>
+                                                    <td className="p-4 font-mono text-blue-400">{o.order_number}</td>
                                                     <td className="p-4">{o.customer_name}</td>
-                                                    <td className="p-4">{o.item_name} (x{o.quantity})</td>
                                                     <td className="p-4 text-emerald-400 font-bold">Rs. {o.total_amount.toFixed(2)}</td>
+                                                    <td className="p-4 text-slate-400 text-sm">{o.employee_name}</td>
                                                     <td className="p-4">
-                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${o.status === 'Approved' ? 'bg-green-500/10 text-green-400' : o.status === 'Pending' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>{o.status}</span>
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${o.status === 'Approved' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}`}>{o.status}</span>
                                                     </td>
-                                                    {user.role === 'ADMIN' && o.status === 'Pending' && (
-                                                        <td className="p-4 space-x-2">
+                                                    <td className="p-4 space-x-2">
+                                                        <button onClick={() => setSelectedInvoice(o)} className="bg-slate-700 px-2 py-1 rounded text-xs">📄 View</button>
+                                                        {user.role === 'ADMIN' && o.status === 'Pending' && (
                                                             <button onClick={() => updateStatus(o.id, 'Approved')} className="bg-emerald-600 text-xs px-2 py-1 rounded">Approve</button>
-                                                            <button onClick={() => updateStatus(o.id, 'Rejected')} className="bg-red-600 text-xs px-2 py-1 rounded">Reject</button>
-                                                        </td>
-                                                    )}
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -305,45 +372,43 @@
                             </div>
                         )}
 
-                        {view === 'add_order' && (
+                        {!selectedInvoice && view === 'add_order' && (
                             <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">Create New Order Invoice</h2>
+                                <h2 className="text-xl font-bold mb-4">නව ඇණවුමක් ඇතුළත් කිරීම (Billing)</h2>
                                 <form onSubmit={handleCreateOrder} className="space-y-4">
                                     <select className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setOrderForm({...orderForm, customerId: e.target.value})} required>
-                                        <option value="">-- Select Customer --</option>
-                                        {myCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        <option value="">-- පාරිභෝගිකයා තෝරන්න --</option>
+                                        {myCustomers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
                                     </select>
                                     <select className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setOrderForm({...orderForm, itemId: e.target.value})} required>
-                                        <option value="">-- Select Item From Stock --</option>
-                                        {myProducts.map(p => <option key={p.id} value={p.id}>{p.item_name} (Stock: {p.quantity}) - Rs. {p.selling_price}</option>)}
+                                        <option value="">-- භාණ්ඩය තෝරන්න --</option>
+                                        {myProducts.map(p => <option key={p.id} value={p.id}>{p.itemName} (Stock: {p.quantity}) - Rs. {p.sellingPrice}</option>)}
                                     </select>
-                                    <input type="number" min="1" placeholder="Quantity" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setOrderForm({...orderForm, quantity: e.target.value})} required />
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold">Launch Order</button>
+                                    <input type="number" min="1" placeholder="ප්‍රමාණය (Quantity)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setOrderForm({...orderForm, quantity: e.target.value})} required />
+                                    <input type="number" min="0" max="100" placeholder="Discount %" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setOrderForm({...orderForm, discountPercent: parseFloat(e.target.value)})} />
+                                    <button type="submit" className="w-full bg-emerald-600 p-3 rounded-xl font-bold">Submit Invoice</button>
                                 </form>
                             </div>
                         )}
 
-                        {view === 'products' && (
+                        {!selectedInvoice && view === 'products' && (
                             <div>
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Inventory Engine</h2>
+                                    <h2 className="text-2xl font-bold">ගබඩා තොග (Stock Inventory)</h2>
                                     {user.role === 'ADMIN' && <button onClick={() => setView('add_product')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Add Product</button>}
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {myProducts.map(p => (
                                         <div key={p.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="text-lg font-bold">{p.item_name}</h4>
-                                                <span className="text-xs font-mono text-slate-500">{p.item_code}</span>
-                                            </div>
-                                            <div className="mt-4 flex justify-between">
+                                            <h4 className="text-lg font-bold">{p.itemName}</h4>
+                                            <p className="text-xs text-slate-500">Code: {p.itemCode}</p>
+                                            <div className="mt-4 flex justify-between text-sm">
                                                 <div>
-                                                    <p className="text-xs text-slate-400">Selling Price</p>
-                                                    <p className="font-bold text-emerald-400">Rs. {parseFloat(p.selling_price).toFixed(2)}</p>
+                                                    {user.role === 'ADMIN' && <p className="text-slate-400">Cost: Rs. {parseFloat(p.costPrice).toFixed(2)}</p>}
+                                                    <p className="text-emerald-400 font-bold">Sale: Rs. {parseFloat(p.sellingPrice).toFixed(2)}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-xs text-slate-400">Stock Status</p>
-                                                    <p className={`font-bold ${p.quantity <= p.lowStock ? 'text-red-400 animate-pulse' : 'text-slate-200'}`}>{p.quantity} Units left</p>
+                                                    <p className={`font-bold ${p.quantity <= p.lowStock ? 'text-red-400' : 'text-slate-200'}`}>{p.quantity} Units</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -352,60 +417,53 @@
                             </div>
                         )}
 
-                        {view === 'add_product' && (
+                        {!selectedInvoice && view === 'add_product' && (
                             <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">Add Product to Global Stock</h2>
+                                <h2 className="text-xl font-bold mb-4">භාණ්ඩ ඇතුළත් කිරීම</h2>
                                 <form onSubmit={handleAddProduct} className="space-y-4">
                                     <input type="text" placeholder="Item Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, itemName: e.target.value})} required />
                                     <input type="text" placeholder="Item Code" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, itemCode: e.target.value})} required />
-                                    <input type="number" placeholder="Cost Price (Rs.)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, costPrice: e.target.value})} required />
-                                    <input type="number" placeholder="Selling Price (Rs.)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, sellingPrice: e.target.value})} required />
-                                    <input type="number" placeholder="Initial Stock Quantity" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, quantity: e.target.value})} required />
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold">Register Product</button>
+                                    <input type="number" placeholder="Cost Price" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, costPrice: parseFloat(e.target.value)})} required />
+                                    <input type="number" placeholder="Selling Price" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, sellingPrice: parseFloat(e.target.value)})} required />
+                                    <input type="number" placeholder="Quantity" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setProdForm({...prodForm, quantity: parseInt(e.target.value)})} required />
+                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold">Save</button>
                                 </form>
                             </div>
                         )}
 
-                        {view === 'customers' && (
+                        {!selectedInvoice && view === 'customers' && (
                             <div>
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Client Directory</h2>
+                                    <h2 className="text-2xl font-bold">පාරිභෝගික නාමාවලිය</h2>
                                     <button onClick={() => setView('add_customer')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Add Customer</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {myCustomers.map(c => (
-                                        <div key={c.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center">
-                                            <div>
-                                                <h3 className="text-xl font-bold text-slate-200">{c.name}</h3>
-                                                <p className="text-sm text-slate-400">{c.phone} | {c.address}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-xs text-slate-500 block">Outstanding</span>
-                                                <span className="text-md font-bold text-amber-500">Rs. {parseFloat(c.outstanding).toFixed(2)}</span>
-                                            </div>
+                                        <div key={c.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                            <h3 className="text-xl font-bold">{c.name}</h3>
+                                            <p className="text-sm text-slate-400">Phone: {c.phone} | Address: {c.address}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {view === 'add_customer' && (
+                        {!selectedInvoice && view === 'add_customer' && (
                             <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">Add Profile to Customer Base</h2>
+                                <h2 className="text-xl font-bold mb-4">නව පාරිභෝගිකයෙකු ඇතුළත් කිරීම</h2>
                                 <form onSubmit={handleAddCustomer} className="space-y-4">
                                     <input type="text" placeholder="Customer Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setCustForm({...custForm, name: e.target.value})} required />
                                     <input type="text" placeholder="Phone Number" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setCustForm({...custForm, phone: e.target.value})} required />
                                     <input type="text" placeholder="Address" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setCustForm({...custForm, address: e.target.value})} />
-                                    <input type="number" placeholder="Outstanding Balance If Any (Rs.)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl" onChange={e => setCustForm({...custForm, outstanding: e.target.value})} />
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold">Save Customer Profile</button>
+                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold">Save Profile</button>
                                 </form>
                             </div>
                         )}
 
-                        {view === 'employees' && (
+                        {!selectedInvoice && view === 'employees' && (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center">
-                                    <h2 className="text-2xl font-bold">Staff Control Panel</h2>
+                                    <h2 className="text-2xl font-bold">සේවක ගිණුම් කළමනාකරණය</h2>
                                     <button onClick={() => setView('add_employee')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Create Employee Portal</button>
                                 </div>
                                 <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
@@ -419,7 +477,7 @@
                             </div>
                         )}
 
-                        {view === 'add_employee' && (
+                        {!selectedInvoice && view === 'add_employee' && (
                             <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
                                 <h2 className="text-xl font-bold mb-4">Create Employee Account</h2>
                                 <form onSubmit={handleAddEmployee} className="space-y-4">
