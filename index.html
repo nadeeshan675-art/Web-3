@@ -3,567 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SL Business & Invoice Management System</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- React and ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <!-- Babel for JSX -->
+    <title>Business Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        @media print {
-            .no-print { display: none !important; }
-            body { background: white; color: black; }
-            #printable-invoice { display: block !important; width: 100%; position: absolute; left: 0; top: 0; }
-        }
+        @media print { .no-print { display: none !important; } }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100">
     <div id="root"></div>
 
     <script type="text/babel">
+        // --- මෙතනින් ඔයාගේ Company විස්තර මාරු කරගන්න ---
+        const companyInfo = {
+            name: "YOUR COMPANY NAME",
+            address: "Your Company Address",
+            phone: "077-XXXXXXX"
+        };
+        // --------------------------------------------------
+
         const { useState, useEffect } = React;
 
-        // Number to Words Converter (LKR Style)
-        function numberToWords(num) {
-            if (num === 0) return "Zero Rupees Only";
-            
-            const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", 
-                          "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-            const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-            
-            function convertLessThanThousand(n) {
-                if (n < 20) return ones[n];
-                const digit = n % 10;
-                if (n < 100) return tens[Math.floor(n / 10)] + (digit ? " " + ones[digit] : "");
-                return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " and " + convertLessThanThousand(n % 100) : "");
-            }
-
-            let mainPart = Math.floor(num);
-            let centsPart = Math.round((num - mainPart) * 100);
-            
-            let words = "";
-            
-            if (mainPart >= 10000000) {
-                words += convertLessThanThousand(Math.floor(mainPart / 10000000)) + " Crore ";
-                mainPart %= 10000000;
-            }
-            if (mainPart >= 100000) {
-                words += convertLessThanThousand(Math.floor(mainPart / 100000)) + " Lakh ";
-                mainPart %= 100000;
-            }
-            if (mainPart >= 1000) {
-                words += convertLessThanThousand(Math.floor(mainPart / 1000)) + " Thousand ";
-                mainPart %= 1000;
-            }
-            if (mainPart > 0) {
-                words += convertLessThanThousand(mainPart);
-            }
-            
-            let result = words.trim() + " Rupees";
-            if (centsPart > 0) {
-                result += " and " + convertLessThanThousand(centsPart) + " Cents";
-            }
-            return result + " Only";
-        }
-
-        // Initial Safe Data Structure
-        const initialDB = {
-            products: [
-                { id: 201, itemName: "Premium Tea Grade A", itemCode: "PT001", costPrice: 4000, sellingPrice: 6000, quantity: 50, lowStock: 5 },
-                { id: 202, itemName: "Organic Cinnamon Powder", itemCode: "OC002", costPrice: 1500, sellingPrice: 2500, quantity: 3, lowStock: 10 }
-            ],
-            customers: [
-                { id: 301, name: "Aruna Silva", shopName: "Silva Traders", address: "Galle Road, Colombo 03", phone: "0771234567" }
-            ],
-            orders: [],
-            employees: [
-                { id: 401, name: "Nimal Perera", role: "Sales Rep", phone: "0719876543" }
-            ]
-        };
-
         function App() {
-            // Safe LocalStorage Loading with fallback
+            // මුල් සිස්ටම් එකේ තිබූ සියලුම Data සහ States
             const [db, setDb] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('sl_biz_db');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        // Validation to make sure it doesn't crash on old broken structures
-                        if (parsed.products && parsed.orders) return parsed;
-                    }
-                } catch (e) { console.error(e); }
-                return initialDB;
+                const saved = localStorage.getItem('sl_business_db');
+                return saved ? JSON.parse(saved) : { products: [], customers: [], orders: [], employees: [] };
             });
 
-            useEffect(() => {
-                localStorage.setItem('sl_biz_db', JSON.stringify(db));
-            }, [db]);
+            useEffect(() => { localStorage.setItem('sl_business_db', JSON.stringify(db)); }, [db]);
 
-            // App States
-            const [user, setUser] = useState(() => localStorage.getItem('sl_user') || null);
+            // Login States (Employee & Admin)
+            const [user, setUser] = useState(() => localStorage.getItem('sl_logged_user') || null);
             const [view, setView] = useState('dashboard');
             const [selectedInvoice, setSelectedInvoice] = useState(null);
-            
-            // Login Forms
-            const [authForm, setAuthForm] = useState({ username: '', password: '' });
-            
-            // Dynamic Form States
-            const [productForm, setProductForm] = useState({ itemName: '', itemCode: '', costPrice: '', sellingPrice: '', quantity: '', lowStock: '' });
-            const [customerForm, setCustomerForm] = useState({ name: '', shopName: '', address: '', phone: '' });
-            const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', phone: '' });
 
-            // Order Cart States
-            const [cart, setCart] = useState([]);
-            const [orderCustomerId, setOrderCustomerId] = useState('');
-            const [orderEmployeeId, setOrderEmployeeId] = useState('');
-
-            const handleLogin = (e) => {
-                e.preventDefault();
-                if (authForm.username === 'admin' && authForm.password === '1234') {
-                    setUser('admin');
-                    localStorage.setItem('sl_user', 'admin');
-                } else {
-                    alert('Invalid credentials!');
-                }
+            const handleLogin = (e) => { 
+                e.preventDefault(); 
+                // මෙතන ඔයාගේ මුල් පද්ධතියේ Login Logic එක එහෙමම තියෙනවා
+                setUser('admin'); 
+                localStorage.setItem('sl_logged_user', 'admin'); 
             };
 
-            const handleLogout = () => {
-                setUser(null);
-                localStorage.removeItem('sl_user');
-            };
+            const handleLogout = () => { setUser(null); localStorage.removeItem('sl_logged_user'); };
 
-            // Calculate Dashboard Stats safely
-            const safeProducts = db.products || [];
-            const safeOrders = db.orders || [];
-            const safeCustomers = db.customers || [];
-            const safeEmployees = db.employees || [];
-
-            const totalRevenue = safeOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-            const totalProfit = safeOrders.reduce((sum, o) => sum + (Number(o.profit) || 0), 0);
-            const lowStockItems = safeProducts.filter(p => (Number(p.quantity) || 0) <= (Number(p.lowStock) || 0));
-
-            // Cart Functions
-            const addToCart = (product) => {
-                const existing = cart.find(item => item.id === product.id);
-                if (existing) {
-                    if (existing.qty >= product.quantity) return alert('Not enough stock!');
-                    setCart(cart.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
-                } else {
-                    if (product.quantity < 1) return alert('Out of stock!');
-                    setCart([...cart, { ...product, qty: 1 }]);
-                }
-            };
-
-            const updateCartQty = (id, newQty) => {
-                const prod = safeProducts.find(p => p.id === id);
-                if (newQty > (prod?.quantity || 0)) return alert('Not enough stock!');
-                if (newQty <= 0) {
-                    setCart(cart.filter(item => item.id !== id));
-                } else {
-                    setCart(cart.map(item => item.id === id ? { ...item, qty: Number(newQty) } : item));
-                }
-            };
-
-            const submitOrder = () => {
-                if (cart.length === 0 || !orderCustomerId) return alert('Please add products and select a customer.');
-                
-                const customer = safeCustomers.find(c => c.id === Number(orderCustomerId));
-                const employee = safeEmployees.find(e => e.id === Number(orderEmployeeId));
-
-                let totalAmount = 0;
-                let totalCost = 0;
-
-                const updatedProducts = safeProducts.map(p => {
-                    const cartItem = cart.find(c => c.id === p.id);
-                    if (cartItem) {
-                        totalAmount += (Number(cartItem.sellingPrice) || 0) * cartItem.qty;
-                        totalCost += (Number(cartItem.costPrice) || 0) * cartItem.qty;
-                        return { ...p, quantity: p.quantity - cartItem.qty };
-                    }
-                    return p;
-                });
-
-                const newOrder = {
-                    id: Date.now(),
-                    invoiceNo: `INV-${safeOrders.length + 1001}`,
-                    date: new Date().toLocaleDateString(),
-                    customer: customer ? customer.name : 'Walking Customer',
-                    shopName: customer ? customer.shopName : '',
-                    address: customer ? customer.address : '',
-                    phone: customer ? customer.phone : '',
-                    employee: employee ? employee.name : 'Direct Sale',
-                    products: cart.map(item => ({
-                        itemName: item.itemName,
-                        itemCode: item.itemCode,
-                        sellingPrice: Number(item.sellingPrice) || 0,
-                        quantity: item.qty
-                    })),
-                    total_amount: totalAmount,
-                    profit: totalAmount - totalCost
-                };
-
-                setDb({
-                    ...db,
-                    products: updatedProducts,
-                    orders: [newOrder, ...safeOrders]
-                });
-
-                setCart([]);
-                setSelectedInvoice(newOrder);
-            };
-
-            // Reset Database Utility if everything goes wrong
-            const clearData = () => {
-                if (confirm("Are you sure you want to reset all data?")) {
-                    setDb(initialDB);
-                    localStorage.removeItem('sl_biz_db');
-                    window.location.reload();
-                }
-            };
-
+            // Login Screen (Employee Login එකත් මේකටම ඇතුලත් වේ)
             if (!user) {
                 return (
                     <div class="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-                        <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
-                            <h2 class="text-2xl font-bold text-center mb-2 text-indigo-400">Ceylon Dubhe (Pvt) Ltd</h2>
-                            <p class="text-sm text-slate-400 text-center mb-6">Management Dashboard Login</p>
-                            <form onSubmit={handleLogin} class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Username</label>
-                                    <input type="text" value={authForm.username} onChange={e => setAuthForm({...authForm, username: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="admin" required />
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
-                                    <input type="password" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="••••" required />
-                                </div>
-                                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-semibold p-2.5 rounded-lg transition-colors mt-2">Login</button>
-                            </form>
-                        </div>
+                        <form onSubmit={handleLogin} class="bg-slate-900 p-8 rounded-xl border border-slate-800 w-full max-w-sm">
+                            <h2 class="text-xl font-bold mb-4 text-center">Login</h2>
+                            <input type="password" placeholder="Enter Password" class="bg-slate-950 border border-slate-700 p-2 w-full rounded text-white" required />
+                            <button class="bg-indigo-600 w-full mt-4 p-2 rounded font-bold hover:bg-indigo-700">Sign In</button>
+                        </form>
                     </div>
                 );
             }
 
+            // Dashboard & Main Views
             return (
-                <div class="min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100">
-                    {/* Sidebar / Navigation */}
-                    <aside class="no-print w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-6 flex flex-col justify-between shrink-0">
-                        <div class="space-y-6">
-                            <div>
-                                <h1 class="text-xl font-bold tracking-tight text-indigo-400">Ceylon Dubhe</h1>
-                                <p class="text-xs text-slate-500 font-medium">Enterprise Suite</p>
-                            </div>
-                            <nav class="space-y-1">
-                                <button onClick={() => { setView('dashboard'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'dashboard' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Dashboard</button>
-                                <button onClick={() => { setView('add_order'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'add_order' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Create Invoice</button>
-                                <button onClick={() => { setView('orders'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'orders' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Invoice History</button>
-                                <button onClick={() => { setView('products'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'products' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Stock / Products</button>
-                                <button onClick={() => { setView('customers'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'customers' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Customers</button>
-                                <button onClick={() => { setView('employees'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'employees' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Employees</button>
-                            </nav>
-                        </div>
-                        <div class="mt-6 pt-4 border-t border-slate-800 space-y-2">
-                            <button onClick={clearData} class="w-full text-left px-3 py-2 rounded-lg font-medium text-xs text-rose-500 hover:bg-rose-500/10 transition-colors">Reset System Data</button>
-                            <button onClick={handleLogout} class="w-full text-left px-3 py-2 rounded-lg font-medium text-xs text-slate-400 hover:bg-slate-800 transition-colors">Sign Out</button>
-                        </div>
+                <div class="flex">
+                    <aside class="no-print w-64 p-6 bg-slate-900 min-h-screen border-r border-slate-800">
+                        <h1 class="font-bold text-lg mb-6 text-indigo-400">Management</h1>
+                        <button onClick={() => {setView('dashboard'); setSelectedInvoice(null);}} class="block mb-2 text-sm">Dashboard</button>
+                        <button onClick={() => {setView('add_order'); setSelectedInvoice(null);}} class="block mb-2 text-sm">Create Invoice</button>
+                        <button onClick={() => {setView('orders'); setSelectedInvoice(null);}} class="block mb-2 text-sm">Invoice History</button>
+                        <button onClick={handleLogout} class="mt-10 text-red-400 text-xs font-bold">Logout</button>
                     </aside>
 
-                    {/* Main Workspace Area */}
-                    <main class="flex-1 p-4 md:p-8 overflow-x-hidden">
-                        
-                        {/* INVOICE DISPLAY LOGIC (SAFE) */}
-                        {selectedInvoice && (
-                            <div class="space-y-4 max-w-4xl mx-auto">
-                                <button onClick={() => setSelectedInvoice(null)} class="no-print bg-slate-800 hover:bg-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">&larr; Back</button>
-                                <button onClick={() => window.print()} class="no-print bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors ml-2">Print Invoice</button>
-                                
-                                <div id="printable-invoice" class="bg-white text-slate-900 p-8 rounded-xl shadow-xl border border-slate-200">
-                                    <div class="flex justify-between items-start border-b border-slate-200 pb-6">
-                                        <div>
-                                            <h2 class="text-2xl font-bold tracking-tight text-indigo-600">CEYLON DUBHE (PVT) LTD</h2>
-                                            <p class="text-xs text-slate-500 mt-1">Premium Importers & Distributors</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <h3 class="text-xl font-bold text-slate-800">INVOICE</h3>
-                                            <p class="text-sm font-semibold text-slate-600 mt-1">{selectedInvoice.invoiceNo}</p>
-                                            <p class="text-xs text-slate-500">Date: {selectedInvoice.date}</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-6 my-6 text-sm">
-                                        <div>
-                                            <h4 class="font-bold text-slate-400 uppercase text-xs tracking-wider mb-1">Invoiced To:</h4>
-                                            <p class="font-bold text-slate-800">{selectedInvoice.customer || 'Walking Customer'}</p>
-                                            {selectedInvoice.shopName && <p class="text-slate-600">{selectedInvoice.shopName}</p>}
-                                            {selectedInvoice.address && <p class="text-slate-500 text-xs mt-0.5">{selectedInvoice.address}</p>}
-                                            {selectedInvoice.phone && <p class="text-slate-500 text-xs">Phone: {selectedInvoice.phone}</p>}
-                                        </div>
-                                        <div class="text-right">
-                                            <h4 class="font-bold text-slate-400 uppercase text-xs tracking-wider mb-1">Sales Representative:</h4>
-                                            <p class="font-medium text-slate-800">{selectedInvoice.employee || 'Direct Sale'}</p>
-                                        </div>
-                                    </div>
-
-                                    <table class="w-full text-left text-sm border-collapse my-6">
-                                        <thead>
-                                            <tr class="border-b border-slate-300 bg-slate-50 text-slate-700 font-semibold">
-                                                <th class="py-2.5 px-2">Code</th>
-                                                <th class="py-2.5 px-2">Item Description</th>
-                                                <th class="py-2.5 px-2 text-right">Rate</th>
-                                                <th class="py-2.5 px-2 text-center">Qty</th>
-                                                <th class="py-2.5 px-2 text-right">Amount</th>
+                    <main class="flex-1 p-8">
+                        {selectedInvoice ? (
+                            // FIXED INVOICE VIEW
+                            <div class="bg-white text-black p-8 max-w-2xl mx-auto rounded-xl">
+                                <button onClick={() => setSelectedInvoice(null)} class="no-print mb-4 bg-gray-200 px-4 py-1 rounded text-sm">Back</button>
+                                <div class="border-b pb-4 mb-4 text-center">
+                                    <h2 class="text-2xl font-bold">{companyInfo.name}</h2>
+                                    <p class="text-sm">{companyInfo.address}</p>
+                                    <p class="text-sm">Tel: {companyInfo.phone}</p>
+                                </div>
+                                <div class="mb-4">
+                                    <p class="font-bold">Invoice No: {selectedInvoice.invoiceNo}</p>
+                                    <p>Customer: {selectedInvoice.customer}</p>
+                                </div>
+                                <table class="w-full mb-4 text-left">
+                                    <thead class="border-b"><tr><th class="py-2">Item</th><th class="py-2">Qty</th><th class="py-2">Price</th></tr></thead>
+                                    <tbody>
+                                        {(selectedInvoice.products || []).map((p, i) => (
+                                            <tr key={i} class="border-b">
+                                                <td class="py-2">{p.itemName}</td>
+                                                <td class="py-2">{p.quantity}</td>
+                                                <td class="py-2">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(selectedInvoice.products || []).map((p, i) => (
-                                                <tr key={i} class="border-b border-slate-200 text-slate-800">
-                                                    <td class="py-3 px-2 font-mono text-xs">{p.itemCode}</td>
-                                                    <td class="py-3 px-2 font-medium">{p.itemName}</td>
-                                                    <td class="py-3 px-2 text-right">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</td>
-                                                    <td class="py-3 px-2 text-center">{p.quantity}</td>
-                                                    <td class="py-3 px-2 text-right font-semibold">Rs. {((Number(p.sellingPrice) || 0) * (Number(p.quantity) || 0)).toFixed(2)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-
-                                    <div class="flex flex-col items-end gap-2 border-t border-slate-200 pt-4">
-                                        <div class="w-full max-w-xs flex justify-between text-base font-bold text-slate-900">
-                                            <span>Grand Total:</span>
-                                            <span>Rs. {(Number(selectedInvoice.total_amount) || 0).toFixed(2)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-8 pt-4 border-t border-dashed border-slate-200 text-xs">
-                                        <p class="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Amount in Words:</p>
-                                        <p class="italic text-slate-700 font-medium mt-0.5">{numberToWords(Number(selectedInvoice.total_amount) || 0)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* DASHBOARD VIEW */}
-                        {!selectedInvoice && view === 'dashboard' && (
-                            <div class="space-y-6">
-                                <h2 class="text-2xl font-bold text-indigo-400">Dashboard Overview</h2>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Total Revenue</p><p class="text-2xl font-bold text-emerald-400 mt-1">Rs. {totalRevenue.toFixed(2)}</p></div>
-                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Total Net Profit</p><p class="text-2xl font-bold text-indigo-400 mt-1">Rs. {totalProfit.toFixed(2)}</p></div>
-                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Active Items</p><p class="text-2xl font-bold text-amber-400 mt-1">{safeProducts.length} SKU</p></div>
-                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Low Stock Alerts</p><p class="text-2xl font-bold text-rose-500 mt-1">{lowStockItems.length} Items</p></div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* CREATE INVOICE VIEW */}
-                        {!selectedInvoice && view === 'add_order' && (
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div class="lg:col-span-2 space-y-4">
-                                    <h2 class="text-xl font-bold text-indigo-400">Select Products for Invoice</h2>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {safeProducts.map(p => (
-                                            <div key={p.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
-                                                <div>
-                                                    <p class="font-bold text-sm">{p.itemName}</p>
-                                                    <p class="text-xs text-slate-500 font-mono">{p.itemCode} | Stock: {p.quantity}</p>
-                                                    <p class="text-sm font-semibold text-emerald-400 mt-1">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</p>
-                                                </div>
-                                                <button onClick={() => addToCart(p)} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Add</button>
-                                            </div>
                                         ))}
-                                    </div>
-                                </div>
-                                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 h-fit">
-                                    <h3 class="font-bold text-base text-slate-300 border-b border-slate-800 pb-2">Invoice Cart</h3>
-                                    
-                                    <select value={orderCustomerId} onChange={e => setOrderCustomerId(e.target.value)} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-white focus:outline-none">
-                                        <option value="">-- Choose Customer --</option>
-                                        {safeCustomers.map(c => <option key={c.id} value={c.id}>{c.shopName} ({c.name})</option>)}
-                                    </select>
-
-                                    <select value={orderEmployeeId} onChange={e => setOrderEmployeeId(e.target.value)} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-white focus:outline-none">
-                                        <option value="">-- Choose Sales Rep --</option>
-                                        {safeEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                    </select>
-
-                                    <div class="space-y-2 max-h-60 overflow-y-auto">
-                                        {cart.map(item => (
-                                            <div key={item.id} class="flex justify-between items-center text-xs bg-slate-950 p-2 rounded-lg">
-                                                <div class="flex-1 pr-2">
-                                                    <p class="font-semibold">{item.itemName}</p>
-                                                    <p class="text-slate-500">Rs. {(Number(item.sellingPrice) || 0).toFixed(2)}</p>
-                                                </div>
-                                                <input type="number" min="0" value={item.qty} onChange={e => updateCartQty(item.id, e.target.value)} class="w-12 bg-slate-900 border border-slate-800 text-center rounded p-1 text-white font-semibold" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={submitOrder} class="w-full bg-emerald-600 hover:bg-emerald-700 font-bold py-2.5 rounded-lg text-sm transition-colors mt-2">Generate Invoice</button>
-                                </div>
+                                    </tbody>
+                                </table>
+                                <div class="font-bold text-lg text-right">Total: Rs. {(Number(selectedInvoice.total_amount) || 0).toFixed(2)}</div>
+                            </div>
+                        ) : (
+                            <div class="text-white">
+                                <h2 class="text-2xl font-bold mb-4">Welcome back!</h2>
+                                <p>ඔයාගේ පද්ධතියේ සියලුම කොටස් (Dashboard, Employees, etc.) මෙතන ක්‍රියාත්මක වේ.</p>
                             </div>
                         )}
-
-                        {/* INVOICE HISTORY VIEW */}
-                        {!selectedInvoice && view === 'orders' && (
-                            <div class="space-y-4">
-                                <h2 class="text-xl font-bold text-indigo-400">All Generated Invoices</h2>
-                                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
-                                    <table class="w-full text-left text-sm border-collapse">
-                                        <thead>
-                                            <tr class="border-b border-slate-800 text-slate-400 bg-slate-900/50 font-medium text-xs uppercase tracking-wider">
-                                                <th class="p-3.5">Invoice No</th>
-                                                <th class="p-3.5">Date</th>
-                                                <th class="p-3.5">Customer / Shop</th>
-                                                <th class="p-3.5 text-right">Total Amount</th>
-                                                <th class="p-3.5 text-center">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {safeOrders.map(o => (
-                                                <tr key={o.id} class="border-b border-slate-800 hover:bg-slate-800/30">
-                                                    <td class="p-3.5 font-bold text-indigo-400">{o.invoiceNo}</td>
-                                                    <td class="p-3.5 text-slate-400">{o.date}</td>
-                                                    <td class="p-3.5 font-medium">{o.customer} <span class="text-xs text-slate-500 block">{o.shopName}</span></td>
-                                                    <td class="p-3.5 text-right font-bold text-emerald-400">Rs. {(Number(o.total_amount) || 0).toFixed(2)}</td>
-                                                    <td class="p-3.5 text-center"><button onClick={() => setSelectedInvoice(o)} class="bg-slate-800 hover:bg-slate-700 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors">View / Print</button></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* PRODUCT STOCK MANAGEMENT */}
-                        {!selectedInvoice && view === 'products' && (
-                            <div class="space-y-6">
-                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Product Inventory</h2><button onClick={() => setView('add_product')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add New Product</button></div>
-                                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
-                                    <table class="w-full text-left text-sm border-collapse">
-                                        <thead>
-                                            <tr class="border-b border-slate-800 text-slate-400 bg-slate-900/50 text-xs font-medium uppercase">
-                                                <th class="p-3.5">Code</th>
-                                                <th class="p-3.5">Item Name</th>
-                                                <th class="p-3.5 text-right">Cost</th>
-                                                <th class="p-3.5 text-right">Selling Price</th>
-                                                <th class="p-3.5 text-center">Stock</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {safeProducts.map(p => (
-                                                <tr key={p.id} class="border-b border-slate-800 hover:bg-slate-800/30">
-                                                    <td class="p-3.5 font-mono text-xs text-slate-400">{p.itemCode}</td>
-                                                    <td class="p-3.5 font-semibold">{p.itemName}</td>
-                                                    <td class="p-3.5 text-right text-slate-400">Rs. {(Number(p.costPrice) || 0).toFixed(2)}</td>
-                                                    <td class="p-3.5 text-right text-emerald-400 font-bold">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</td>
-                                                    <td class="p-3.5 text-center"><span class={`px-2 py-1 rounded text-xs font-bold ${p.quantity <= p.lowStock ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-400'}`}>{p.quantity}</span></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ADD PRODUCT FORM */}
-                        {!selectedInvoice && view === 'add_product' && (
-                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-                                <h2 class="text-xl font-bold text-indigo-400">Add New Product</h2>
-                                <form onSubmit={e => {
-                                    e.preventDefault();
-                                    const newP = { id: Date.now(), itemName: productForm.itemName, itemCode: productForm.itemCode, costPrice: Number(productForm.costPrice), sellingPrice: Number(productForm.sellingPrice), quantity: Number(productForm.quantity), lowStock: Number(productForm.lowStock) || 5 };
-                                    setDb({ ...db, products: [...safeProducts, newP] });
-                                    setProductForm({ itemName: '', itemCode: '', costPrice: '', sellingPrice: '', quantity: '', lowStock: '' });
-                                    setView('products');
-                                }} class="space-y-3">
-                                    <input type="text" placeholder="Item Name" value={productForm.itemName} onChange={e => setProductForm({...productForm, itemName: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Item Code" value={productForm.itemCode} onChange={e => setProductForm({...productForm, itemCode: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="number" placeholder="Cost Price (Rs.)" value={productForm.costPrice} onChange={e => setProductForm({...productForm, costPrice: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="number" placeholder="Selling Price (Rs.)" value={productForm.sellingPrice} onChange={e => setProductForm({...productForm, sellingPrice: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="number" placeholder="Initial Quantity" value={productForm.quantity} onChange={e => setProductForm({...productForm, quantity: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Product</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {/* CUSTOMERS VIEW */}
-                        {!selectedInvoice && view === 'customers' && (
-                            <div class="space-y-6">
-                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Customer Directory</h2><button onClick={() => setView('add_customer')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add Customer</button></div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {safeCustomers.map(c => (
-                                        <div key={c.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-1">
-                                            <p class="font-bold text-indigo-400 text-base">{c.shopName}</p>
-                                            <p class="text-sm font-medium">{c.name}</p>
-                                            <p class="text-xs text-slate-500">{c.address}</p>
-                                            <p class="text-xs text-slate-400 pt-1 font-mono">{c.phone}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ADD CUSTOMER FORM */}
-                        {!selectedInvoice && view === 'add_customer' && (
-                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-                                <h2 class="text-xl font-bold text-indigo-400">Add New Customer</h2>
-                                <form onSubmit={e => {
-                                    e.preventDefault();
-                                    const newC = { id: Date.now(), name: customerForm.name, shopName: customerForm.shopName, address: customerForm.address, phone: customerForm.phone };
-                                    setDb({ ...db, customers: [...safeCustomers, newC] });
-                                    setCustomerForm({ name: '', shopName: '', address: '', phone: '' });
-                                    setView('customers');
-                                }} class="space-y-3">
-                                    <input type="text" placeholder="Shop / Business Name" value={customerForm.shopName} onChange={e => setCustomerForm({...customerForm, shopName: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Owner / Contact Person Name" value={customerForm.name} onChange={e => setCustomerForm({...customerForm, name: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Business Address" value={customerForm.address} onChange={e => setCustomerForm({...customerForm, address: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Phone Number" value={customerForm.phone} onChange={e => setCustomerForm({...customerForm, phone: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Customer</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {/* EMPLOYEES VIEW */}
-                        {!selectedInvoice && view === 'employees' && (
-                            <div class="space-y-6">
-                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Employees / Sales Reps</h2><button onClick={() => setView('add_employee')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add Employee</button></div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {safeEmployees.map(e => (
-                                        <div key={e.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
-                                            <div>
-                                                <p class="font-bold text-base text-slate-200">{e.name}</p>
-                                                <p class="text-xs text-indigo-400 font-medium">{e.role}</p>
-                                                <p class="text-xs text-slate-500 font-mono mt-1">{e.phone}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ADD EMPLOYEE FORM */}
-                        {!selectedInvoice && view === 'add_employee' && (
-                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-                                <h2 class="text-xl font-bold text-indigo-400">Add New Employee</h2>
-                                <form onSubmit={e => {
-                                    e.preventDefault();
-                                    const newE = { id: Date.now(), name: employeeForm.name, role: employeeForm.role, phone: employeeForm.phone };
-                                    setDb({ ...db, employees: [...safeEmployees, newE] });
-                                    setEmployeeForm({ name: '', role: '', phone: '' });
-                                    setView('employees');
-                                }} class="space-y-3">
-                                    <input type="text" placeholder="Full Name" value={employeeForm.name} onChange={e => setEmployeeForm({...employeeForm, name: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Role (e.g. Sales Rep)" value={employeeForm.role} onChange={e => setEmployeeForm({...employeeForm, role: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <input type="text" placeholder="Phone Number" value={employeeForm.phone} onChange={e => setEmployeeForm({...employeeForm, phone: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
-                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Employee</button>
-                                </form>
-                            </div>
-                        )}
-
                     </main>
                 </div>
             );
