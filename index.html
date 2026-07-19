@@ -3,265 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SL Business Pro - Corporate Enterprise v7</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & Babel CDNs -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <title>SL Business & Invoice Management System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
         @media print {
-            body { background: white !important; color: black !important; }
             .no-print { display: none !important; }
-            #printable-invoice { 
-                position: absolute; left: 0; top: 0; width: 100%; 
-                box-shadow: none !important; border: none !important; padding: 0 !important; 
-                color: black !important; background: white !important;
-            }
-            tr { page-break-inside: avoid; }
+            body { background: white; color: black; }
+            #printable-invoice { display: block !important; width: 100%; position: absolute; left: 0; top: 0; }
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+<body class="bg-slate-900 text-slate-100">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const MY_COMPANY = {
-            name: "Ceylon Dubhe (Pvt) Ltd",
-            address: "No. 68 1/1, Parakrama Mawatha, Peliyagoda",
-            phone: "011 470 1217",
-            email: "info@dubhe.lk",
-            web: "www.dubhe.lk",
-            sourceMc: "New W/H Peliyagoda"
-        };
-
-        const initDB = () => {
-            const data = localStorage.getItem('sl_biz_db');
-            if (data) {
-                try {
-                    return JSON.parse(data);
-                } catch(e) {
-                    localStorage.removeItem('sl_biz_db');
-                }
-            }
-            
-            return {
-                companies: [], 
-                employees: [{ id: 1, fullName: 'SUMITH', username: 'sumith', password: '123' }], 
-                customers: [
-                    { id: 101, name: 'SAMPATH STORES - KALAWANA RD', phone: '070355219', address: 'GARMENT JUNCTION,\nKALAWANA RD,' }
-                ], 
-                products: [
-                    { id: 201, itemName: "Angel Grinder 4' Back Switch Type", itemCode: "S0200301", costPrice: 4000, sellingPrice: 6014, quantity: 50, lowStock: 5 },
-                    { id: 202, itemName: "Angle Grinder 4 1/2\" Back Switch", itemCode: "S0200310", costPrice: 5000, sellingPrice: 7068, quantity: 45, lowStock: 5 },
-                    { id: 203, itemName: "Impact Drill 13mm (580w)", itemCode: "S0200103", costPrice: 4500, sellingPrice: 6496, quantity: 30, lowStock: 5 },
-                    { id: 204, itemName: "Circular Saw 7 1/4\" (1500w)", itemCode: "S0200202", costPrice: 11000, sellingPrice: 15963, quantity: 20, lowStock: 5 }
-                ], 
-                orders: [] 
-            };
-        };
-
-        const saveDB = (dbData) => {
-            localStorage.setItem('sl_biz_db', JSON.stringify(dbData));
-        };
-
+        // Number to Words Converter (LKR Style)
         function numberToWords(num) {
-            const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
-            const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+            if (num === 0) return "Zero Rupees Only";
             
-            if ((num = num.toString()).length > 9) return 'overflow';
-            let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-            if (!n) return ''; 
-            let str = '';
-            str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
-            str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
-            str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
-            str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
-            str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
-            return str.trim();
+            const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", 
+                          "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+            const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+            
+            function convertLessThanThousand(n) {
+                if (n < 20) return ones[n];
+                const digit = n % 10;
+                if (n < 100) return tens[Math.floor(n / 10)] + (digit ? " " + ones[digit] : "");
+                return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " and " + convertLessThanThousand(n % 100) : "");
+            }
+
+            let mainPart = Math.floor(num);
+            let centsPart = Math.round((num - mainPart) * 100);
+            
+            let words = "";
+            
+            if (mainPart >= 10000000) {
+                words += convertLessThanThousand(Math.floor(mainPart / 10000000)) + " Crore ";
+                mainPart %= 10000000;
+            }
+            if (mainPart >= 100000) {
+                words += convertLessThanThousand(Math.floor(mainPart / 100000)) + " Lakh ";
+                mainPart %= 100000;
+            }
+            if (mainPart >= 1000) {
+                words += convertLessThanThousand(Math.floor(mainPart / 1000)) + " Thousand ";
+                mainPart %= 1000;
+            }
+            if (mainPart > 0) {
+                words += convertLessThanThousand(mainPart);
+            }
+            
+            let result = words.trim() + " Rupees";
+            if (centsPart > 0) {
+                result += " and " + convertLessThanThousand(centsPart) + " Cents";
+            }
+            return result + " Only";
         }
 
-        function formatAmountInWords(amount) {
-            const parts = amount.toFixed(2).split('.');
-            const rupees = parseInt(parts[0]);
-            const cents = parseInt(parts[1]);
-            
-            let words = numberToWords(rupees) + " Rupees";
-            if (cents > 0) {
-                words += " and " + numberToWords(cents) + " Cents";
-            }
-            return words + " Only";
-        }
+        // Initial Safe Data Structure
+        const initialDB = {
+            products: [
+                { id: 201, itemName: "Premium Tea Grade A", itemCode: "PT001", costPrice: 4000, sellingPrice: 6000, quantity: 50, lowStock: 5 },
+                { id: 202, itemName: "Organic Cinnamon Powder", itemCode: "OC002", costPrice: 1500, sellingPrice: 2500, quantity: 3, lowStock: 10 }
+            ],
+            customers: [
+                { id: 301, name: "Aruna Silva", shopName: "Silva Traders", address: "Galle Road, Colombo 03", phone: "0771234567" }
+            ],
+            orders: [],
+            employees: [
+                { id: 401, name: "Nimal Perera", role: "Sales Rep", phone: "0719876543" }
+            ]
+        };
 
         function App() {
-            const [db, setDb] = useState(initDB());
-            const [user, setUser] = useState(JSON.parse(localStorage.getItem('sl_user')) || null);
+            // Safe LocalStorage Loading with fallback
+            const [db, setDb] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('sl_biz_db');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        // Validation to make sure it doesn't crash on old broken structures
+                        if (parsed.products && parsed.orders) return parsed;
+                    }
+                } catch (e) { console.error(e); }
+                return initialDB;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('sl_biz_db', JSON.stringify(db));
+            }, [db]);
+
+            // App States
+            const [user, setUser] = useState(() => localStorage.getItem('sl_user') || null);
             const [view, setView] = useState('dashboard');
             const [selectedInvoice, setSelectedInvoice] = useState(null);
             
-            const [cart, setCart] = useState([]);
-            const [selectedCustomerId, setSelectedCustomerId] = useState('');
-            const [additionalDiscountPercent, setAdditionalDiscountPercent] = useState(0);
-
+            // Login Forms
             const [authForm, setAuthForm] = useState({ username: '', password: '' });
-            const [custForm, setCustForm] = useState({ name: '', phone: '', address: '' });
-            const [prodForm, setProdForm] = useState({ itemName: '', itemCode: '', costPrice: 0, sellingPrice: 0, quantity: 0, lowStock: 5 });
-            const [orderForm, setOrderForm] = useState({ itemId: '', quantity: 1, discountPercent: 0 });
-            const [empForm, setEmpForm] = useState({ fullName: '', username: '', password: '' });
+            
+            // Dynamic Form States
+            const [productForm, setProductForm] = useState({ itemName: '', itemCode: '', costPrice: '', sellingPrice: '', quantity: '', lowStock: '' });
+            const [customerForm, setCustomerForm] = useState({ name: '', shopName: '', address: '', phone: '' });
+            const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', phone: '' });
+
+            // Order Cart States
+            const [cart, setCart] = useState([]);
+            const [orderCustomerId, setOrderCustomerId] = useState('');
+            const [orderEmployeeId, setOrderEmployeeId] = useState('');
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                if (authForm.username.toLowerCase() === 'admin' && authForm.password === 'admin') {
-                    const sessionData = { role: 'ADMIN', name: 'ADMINISTRATOR' };
-                    setUser(sessionData);
-                    localStorage.setItem('sl_user', JSON.stringify(sessionData));
-                    return;
+                if (authForm.username === 'admin' && authForm.password === '1234') {
+                    setUser('admin');
+                    localStorage.setItem('sl_user', 'admin');
+                } else {
+                    alert('Invalid credentials!');
                 }
+            };
+
+            const handleLogout = () => {
+                setUser(null);
+                localStorage.removeItem('sl_user');
+            };
+
+            // Calculate Dashboard Stats safely
+            const safeProducts = db.products || [];
+            const safeOrders = db.orders || [];
+            const safeCustomers = db.customers || [];
+            const safeEmployees = db.employees || [];
+
+            const totalRevenue = safeOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+            const totalProfit = safeOrders.reduce((sum, o) => sum + (Number(o.profit) || 0), 0);
+            const lowStockItems = safeProducts.filter(p => (Number(p.quantity) || 0) <= (Number(p.lowStock) || 0));
+
+            // Cart Functions
+            const addToCart = (product) => {
+                const existing = cart.find(item => item.id === product.id);
+                if (existing) {
+                    if (existing.qty >= product.quantity) return alert('Not enough stock!');
+                    setCart(cart.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+                } else {
+                    if (product.quantity < 1) return alert('Out of stock!');
+                    setCart([...cart, { ...product, qty: 1 }]);
+                }
+            };
+
+            const updateCartQty = (id, newQty) => {
+                const prod = safeProducts.find(p => p.id === id);
+                if (newQty > (prod?.quantity || 0)) return alert('Not enough stock!');
+                if (newQty <= 0) {
+                    setCart(cart.filter(item => item.id !== id));
+                } else {
+                    setCart(cart.map(item => item.id === id ? { ...item, qty: Number(newQty) } : item));
+                }
+            };
+
+            const submitOrder = () => {
+                if (cart.length === 0 || !orderCustomerId) return alert('Please add products and select a customer.');
                 
-                const emp = db.employees.find(e => e.username === authForm.username && e.password === authForm.password);
-                if (emp) {
-                    const sessionData = { role: 'EMPLOYEE', name: emp.fullName };
-                    setUser(sessionData);
-                    localStorage.setItem('sl_user', JSON.stringify(sessionData));
-                    return;
-                }
-                alert('පරිශීලක නාමය හෝ රහස්පදය වැරදියි! (Default Admin: admin / admin)');
-            };
+                const customer = safeCustomers.find(c => c.id === Number(orderCustomerId));
+                const employee = safeEmployees.find(e => e.id === Number(orderEmployeeId));
 
-            const handleAddCustomer = (e) => {
-                e.preventDefault();
-                const newCust = { id: Date.now(), ...custForm };
-                const updatedDB = { ...db, customers: [...db.customers, newCust] };
-                setDb(updatedDB); saveDB(updatedDB);
-                alert('පාරිභෝගිකයා සාර්ථකව ඇතුළත් කළා!');
-                setView('customers');
-            };
+                let totalAmount = 0;
+                let totalCost = 0;
 
-            const handleAddProduct = (e) => {
-                e.preventDefault();
-                const newProd = { id: Date.now(), ...prodForm };
-                const updatedDB = { ...db, products: [...db.products, newProd] };
-                setDb(updatedDB); saveDB(updatedDB);
-                alert('භාණ්ඩය සාර්ථකව ඇතුළත් කළා!');
-                setView('products');
-            };
-
-            const addItemToCart = (e) => {
-                e.preventDefault();
-                if (!orderForm.itemId) { alert('කරුණාකර භාණ්ඩයක් තෝරන්න.'); return; }
-                const prod = db.products.find(p => p.id == orderForm.itemId);
-                
-                if (!prod || prod.quantity < orderForm.quantity) {
-                    alert('ගබඩාවේ පවතින ප්‍රමාණයට වඩා ඇණවුම් කළ නොහැක!');
-                    return;
-                }
-
-                const grossAmount = orderForm.quantity * prod.sellingPrice;
-                const discount = (grossAmount * (orderForm.discountPercent || 0)) / 100;
-                const finalAmount = grossAmount - discount;
-                const costTotal = orderForm.quantity * prod.costPrice;
-                const calculatedProfit = finalAmount - costTotal;
-
-                const cartItem = {
-                    item_id: prod.id,
-                    item_name: prod.itemName,
-                    item_code: prod.itemCode,
-                    quantity: parseInt(orderForm.quantity),
-                    selling_price: parseFloat(prod.sellingPrice),
-                    discount_rate: orderForm.discountPercent,
-                    discount_amount: discount,
-                    total_amount: finalAmount,
-                    profit: calculatedProfit
-                };
-
-                setCart([...cart, cartItem]);
-                setOrderForm({ itemId: '', quantity: 1, discountPercent: 0 });
-            };
-
-            const submitCompleteOrder = () => {
-                if (!selectedCustomerId) { alert('කරුණාකර පාරිභෝගිකයා තෝරන්න!'); return; }
-                if (cart.length === 0) { alert('කරුණාකර අවම වශයෙන් එක් භාණ්ඩයක්වත් එකතු කරන්න!'); return; }
-
-                const cust = db.customers.find(c => c.id == selectedCustomerId);
-                const subTotal = cart.reduce((sum, item) => sum + item.total_amount, 0);
-                const additionalDiscountAmt = (subTotal * (additionalDiscountPercent || 0)) / 100;
-                const finalInvoiceAmount = subTotal - additionalDiscountAmt;
-                const totalInvoiceProfit = cart.reduce((sum, item) => sum + item.profit, 0) - additionalDiscountAmt;
-                const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-                const dateObj = new Date();
-                const currentMonthName = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-                const currentDay = String(dateObj.getDate()).padStart(2, '0');
-                const uniqueId = Math.floor(1000 + Math.random() * 9000);
-
-                const newOrderInvoice = {
-                    id: Date.now(),
-                    order_number: `${currentDay}${currentMonthName}_DU_${uniqueId}`,
-                    customer_name: cust.name,
-                    customer_phone: cust.phone,
-                    customer_address: cust.address || 'N/A',
-                    items: cart,
-                    sub_total: subTotal,
-                    additional_discount_rate: additionalDiscountPercent,
-                    additional_discount_amount: additionalDiscountAmt,
-                    total_amount: finalInvoiceAmount,
-                    total_qty: totalQty,
-                    profit: totalInvoiceProfit,
-                    employee_name: user.name,
-                    po_number: Math.floor(10000 + Math.random() * 90000),
-                    status: 'Approved', 
-                    date: dateObj.toLocaleDateString('en-GB').replace(/\//g, '-') 
-                };
-
-                // Deduct Inventory
-                const updatedProducts = db.products.map(p => {
-                    const cartItem = cart.find(item => item.item_id === p.id);
-                    if (cartItem) return { ...p, quantity: p.quantity - cartItem.quantity };
+                const updatedProducts = safeProducts.map(p => {
+                    const cartItem = cart.find(c => c.id === p.id);
+                    if (cartItem) {
+                        totalAmount += (Number(cartItem.sellingPrice) || 0) * cartItem.qty;
+                        totalCost += (Number(cartItem.costPrice) || 0) * cartItem.qty;
+                        return { ...p, quantity: p.quantity - cartItem.qty };
+                    }
                     return p;
                 });
 
-                const updatedDB = { ...db, products: updatedProducts, orders: [...db.orders, newOrderInvoice] };
-                setDb(updatedDB); saveDB(updatedDB);
-                
-                alert('ඇණවුම සාර්ථකව පද්ධතියට ඇතුළත් කර ඉන්වොයිසිය සකස් කලා!');
+                const newOrder = {
+                    id: Date.now(),
+                    invoiceNo: `INV-${safeOrders.length + 1001}`,
+                    date: new Date().toLocaleDateString(),
+                    customer: customer ? customer.name : 'Walking Customer',
+                    shopName: customer ? customer.shopName : '',
+                    address: customer ? customer.address : '',
+                    phone: customer ? customer.phone : '',
+                    employee: employee ? employee.name : 'Direct Sale',
+                    products: cart.map(item => ({
+                        itemName: item.itemName,
+                        itemCode: item.itemCode,
+                        sellingPrice: Number(item.sellingPrice) || 0,
+                        quantity: item.qty
+                    })),
+                    total_amount: totalAmount,
+                    profit: totalAmount - totalCost
+                };
+
+                setDb({
+                    ...db,
+                    products: updatedProducts,
+                    orders: [newOrder, ...safeOrders]
+                });
+
                 setCart([]);
-                setSelectedCustomerId('');
-                setAdditionalDiscountPercent(0);
-                setView('orders');
+                setSelectedInvoice(newOrder);
             };
 
-            const handleAddEmployee = (e) => {
-                e.preventDefault();
-                const newEmp = { id: Date.now(), ...empForm };
-                const updatedDB = { ...db, employees: [...db.employees, newEmp] };
-                setDb(updatedDB); saveDB(updatedDB);
-                alert(`සේවක ගිණුම සාර්ථකව සෑදුවා!`);
-                setView('employees');
+            // Reset Database Utility if everything goes wrong
+            const clearData = () => {
+                if (confirm("Are you sure you want to reset all data?")) {
+                    setDb(initialDB);
+                    localStorage.removeItem('sl_biz_db');
+                    window.location.reload();
+                }
             };
-
-            const logout = () => {
-                localStorage.removeItem('sl_user');
-                setUser(null);
-            };
-
-            const totalRevenue = db.orders ? db.orders.reduce((sum, o) => sum + o.total_amount, 0) : 0;
-            const totalProfit = db.orders ? db.orders.reduce((sum, o) => sum + o.profit, 0) : 0;
 
             if (!user) {
                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-                        <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-slate-800">
-                            <h2 className="text-3xl font-bold text-center text-blue-500 mb-2">{MY_COMPANY.name}</h2>
-                            <p className="text-center text-xs text-slate-400 mb-6">Billing & ERP System Portal</p>
-                            <form onSubmit={handleLogin} className="space-y-4">
-                                <input type="text" placeholder="Username (Default: admin)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setAuthForm({...authForm, username: e.target.value})} required />
-                                <input type="password" placeholder="Password (Default: admin)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setAuthForm({...authForm, password: e.target.value})} required />
-                                <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-700 transition">
-                                    ඇතුළු වන්න (Login)
-                                </button>
+                    <div class="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+                        <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
+                            <h2 class="text-2xl font-bold text-center mb-2 text-indigo-400">Ceylon Dubhe (Pvt) Ltd</h2>
+                            <p class="text-sm text-slate-400 text-center mb-6">Management Dashboard Login</p>
+                            <form onSubmit={handleLogin} class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Username</label>
+                                    <input type="text" value={authForm.username} onChange={e => setAuthForm({...authForm, username: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="admin" required />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+                                    <input type="password" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="••••" required />
+                                </div>
+                                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-semibold p-2.5 rounded-lg transition-colors mt-2">Login</button>
                             </form>
                         </div>
                     </div>
@@ -269,310 +250,294 @@
             }
 
             return (
-                <div className="min-h-screen flex flex-col md:flex-row bg-slate-950">
-                    <aside className="no-print w-full md:w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between">
-                        <div>
-                            <div className="mb-8">
-                                <h1 className="text-lg font-bold text-blue-500">{MY_COMPANY.name}</h1>
-                                <p className="text-xs text-slate-400 mt-1">Authorized Node: {user.name}</p>
+                <div class="min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100">
+                    {/* Sidebar / Navigation */}
+                    <aside class="no-print w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-6 flex flex-col justify-between shrink-0">
+                        <div class="space-y-6">
+                            <div>
+                                <h1 class="text-xl font-bold tracking-tight text-indigo-400">Ceylon Dubhe</h1>
+                                <p class="text-xs text-slate-500 font-medium">Enterprise Suite</p>
                             </div>
-                            <nav className="space-y-2">
-                                <button onClick={() => { setView('dashboard'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'dashboard' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📊 Dashboard Overview</button>
-                                <button onClick={() => { setView('orders'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'orders' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>📦 Invoices Log</button>
-                                <button onClick={() => { setView('products'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'products' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>🛒 Stock Inventory</button>
-                                <button onClick={() => { setView('customers'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'customers' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👥 Customers Directory</button>
-                                {user.role === 'ADMIN' && (
-                                    <button onClick={() => { setView('employees'); setSelectedInvoice(null); }} className={`w-full text-left p-3 rounded-xl ${view === 'employees' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800'}`}>👔 Staff Logins</button>
-                                )}
+                            <nav class="space-y-1">
+                                <button onClick={() => { setView('dashboard'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'dashboard' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Dashboard</button>
+                                <button onClick={() => { setView('add_order'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'add_order' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Create Invoice</button>
+                                <button onClick={() => { setView('orders'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'orders' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Invoice History</button>
+                                <button onClick={() => { setView('products'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'products' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Stock / Products</button>
+                                <button onClick={() => { setView('customers'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'customers' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Customers</button>
+                                <button onClick={() => { setView('employees'); setSelectedInvoice(null); }} class={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors ${view === 'employees' && !selectedInvoice ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:bg-slate-800/50'}`}>Employees</button>
                             </nav>
                         </div>
-                        <button onClick={logout} className="mt-8 bg-red-600/20 text-red-400 p-3 rounded-xl font-bold hover:bg-red-600 hover:text-white transition">Sign Out</button>
+                        <div class="mt-6 pt-4 border-t border-slate-800 space-y-2">
+                            <button onClick={clearData} class="w-full text-left px-3 py-2 rounded-lg font-medium text-xs text-rose-500 hover:bg-rose-500/10 transition-colors">Reset System Data</button>
+                            <button onClick={handleLogout} class="w-full text-left px-3 py-2 rounded-lg font-medium text-xs text-slate-400 hover:bg-slate-800 transition-colors">Sign Out</button>
+                        </div>
                     </aside>
 
-                    <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
+                    {/* Main Workspace Area */}
+                    <main class="flex-1 p-4 md:p-8 overflow-x-hidden">
                         
+                        {/* INVOICE DISPLAY LOGIC (SAFE) */}
                         {selectedInvoice && (
-                            <div className="max-w-4xl mx-auto bg-slate-900 p-4 rounded-2xl border border-slate-800 no-print mb-6 flex justify-between items-center">
-                                <span className="text-sm text-slate-400">System generated invoice: <b>{selectedInvoice.order_number}</b></span>
-                                <div className="space-x-2">
-                                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition">🖨️ Print Document</button>
-                                    <button onClick={() => setSelectedInvoice(null)} className="bg-slate-700 text-slate-200 px-4 py-2 rounded-xl hover:bg-slate-600">Close Preview</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {selectedInvoice && (
-                            <div id="printable-invoice" className="bg-white text-black p-6 mx-auto border-2 border-black max-w-[8.5in] min-h-[11in] font-serif text-[12px] leading-tight shadow-xl">
-                                <div className="text-center border-b-2 border-black pb-2 mb-2 relative">
-                                    <h1 className="text-2xl font-black tracking-wide uppercase font-sans">{MY_COMPANY.name}</h1>
-                                    <p className="text-[11px] font-sans">
-                                        {MY_COMPANY.address} &nbsp;|&nbsp; 
-                                        TP: {MY_COMPANY.phone} &nbsp;|&nbsp; 
-                                        E-mail: {MY_COMPANY.email} &nbsp;|&nbsp; 
-                                        Web: {MY_COMPANY.web}
-                                    </p>
-                                    <span className="absolute right-2 top-0 border border-black px-2 py-0.5 text-xs font-black tracking-widest font-sans">INVOICE</span>
-                                </div>
-
-                                <div className="grid grid-cols-12 border-b-2 border-black mb-3">
-                                    <div className="col-span-6 border-r-2 border-black p-2 font-sans text-[11px]">
-                                        <div><span className="font-bold italic">SOURCE MC:</span> &nbsp; <span className="font-bold">{MY_COMPANY.sourceMc}</span></div>
-                                        <div className="mt-1 font-bold italic border-b border-gray-300 pb-0.5">Customer Details :</div>
-                                        <div className="mt-1 font-black uppercase text-[12px]">{selectedInvoice.customer_name}</div>
-                                        <div className="text-gray-700 font-medium whitespace-pre-wrap">{selectedInvoice.customer_address}</div>
-                                        <div className="mt-1 font-bold">{selectedInvoice.customer_phone}</div>
-                                    </div>
-                                    <div className="col-span-6 p-2 font-sans text-[11px] space-y-1">
-                                        <div className="flex"><span className="w-28 font-bold">INV.No.</span><span className="font-bold">: {selectedInvoice.order_number}</span></div>
-                                        <div className="flex"><span className="w-28 font-bold">Date</span><span>: {selectedInvoice.date}</span></div>
-                                        <div className="flex"><span className="w-28 font-bold">PO No</span><span>: {selectedInvoice.po_number}</span></div>
-                                        <div className="flex"><span className="w-28 font-bold">Sales Person</span><span>: {selectedInvoice.employee_name.toUpperCase()}</span></div>
-                                        <div className="flex"><span className="w-28 font-bold">Payment Term</span><span>: CREDIT</span></div>
-                                    </div>
-                                </div>
-
-                                <table className="w-full text-left border-collapse border border-black font-sans text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-black bg-gray-100 font-bold text-center">
-                                            <th className="border-r border-black p-1 w-[4%]">S.N.</th>
-                                            <th className="border-r border-black p-1 text-left w-[45%]">Description of Goods</th>
-                                            <th className="border-r border-black p-1 w-[12%]">Code</th>
-                                            <th className="border-r border-black p-1 w-[8%]">Qty.</th>
-                                            <th className="border-r border-black p-1 w-[6%]">Unit</th>
-                                            <th className="border-r border-black p-1 w-[10%] text-right">List Price</th>
-                                            <th className="border-r border-black p-1 w-[10%] text-right">Discount</th>
-                                            <th className="border-r border-black p-1 w-[10%] text-right">Price</th>
-                                            <th className="p-1 text-right w-[12%]">Amount(Rs.)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {selectedInvoice.items && selectedInvoice.items.map((item, idx) => {
-                                            const listPrice = item.selling_price;
-                                            const discPercent = item.discount_rate || 0;
-                                            const itemFinalPrice = listPrice - (listPrice * discPercent / 100);
-                                            return (
-                                                <tr key={idx} className="border-b border-black text-center align-middle">
-                                                    <td className="border-r border-black p-2">{idx + 1}.</td>
-                                                    <td className="border-r border-black p-2 text-left font-medium">{item.item_name}</td>
-                                                    <td className="border-r border-black p-2 font-mono">{item.item_code}</td>
-                                                    <td className="border-r border-black p-2 font-bold">{item.quantity.toFixed(2)}</td>
-                                                    <td className="border-r border-black p-2">Pcs.</td>
-                                                    <td className="border-r border-black p-2 text-right font-mono">{listPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                                                    <td className="border-r border-black p-2 text-right font-mono">{discPercent.toFixed(2)} %</td>
-                                                    <td className="border-r border-black p-2 text-right font-mono">{itemFinalPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                                                    <td className="p-2 text-right font-bold font-mono">{item.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                        {[...Array(Math.max(0, 5 - (selectedInvoice.items?.length || 0)))].map((_, i) => (
-                                            <tr key={i} className="border-b border-black h-8 text-center opacity-10">
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="border-r border-black p-1"></td>
-                                                <td className="p-1"></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-
-                                <div className="mt-4 font-sans text-[11px]">
-                                    {selectedInvoice.additional_discount_amount > 0 && (
-                                        <div className="flex justify-end border border-black border-b-0">
-                                            <div className="w-[88%] text-right p-1.5 border-r border-black font-italic italic">
-                                                Less : Additional Discount @ {selectedInvoice.additional_discount_rate?.toFixed(2)} %
-                                            </div>
-                                            <div className="w-[12%] text-right p-1.5 font-mono">
-                                                {selectedInvoice.additional_discount_amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
-                                            </div>
+                            <div class="space-y-4 max-w-4xl mx-auto">
+                                <button onClick={() => setSelectedInvoice(null)} class="no-print bg-slate-800 hover:bg-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">&larr; Back</button>
+                                <button onClick={() => window.print()} class="no-print bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors ml-2">Print Invoice</button>
+                                
+                                <div id="printable-invoice" class="bg-white text-slate-900 p-8 rounded-xl shadow-xl border border-slate-200">
+                                    <div class="flex justify-between items-start border-b border-slate-200 pb-6">
+                                        <div>
+                                            <h2 class="text-2xl font-bold tracking-tight text-indigo-600">CEYLON DUBHE (PVT) LTD</h2>
+                                            <p class="text-xs text-slate-500 mt-1">Premium Importers & Distributors</p>
                                         </div>
-                                    )}
-
-                                    <div className="flex justify-between items-center border border-black bg-gray-50">
-                                        <div className="w-[50%] p-2 font-black text-xs uppercase tracking-wider text-left border-r border-black">
-                                            Grand Total
-                                        </div>
-                                        <div className="w-[38%] p-2 font-black text-xs text-center border-r border-black">
-                                            {selectedInvoice.total_qty.toFixed(2)} Pcs.
-                                        </div>
-                                        <div className="w-[12%] p-2 font-black text-sm text-right font-mono">
-                                            {selectedInvoice.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                                        <div class="text-right">
+                                            <h3 class="text-xl font-bold text-slate-800">INVOICE</h3>
+                                            <p class="text-sm font-semibold text-slate-600 mt-1">{selectedInvoice.invoiceNo}</p>
+                                            <p class="text-xs text-slate-500">Date: {selectedInvoice.date}</p>
                                         </div>
                                     </div>
 
-                                    <div className="mt-2 p-2 border border-black rounded bg-gray-50/50 font-medium">
-                                        <span className="font-bold">LKR:</span> &nbsp; 
-                                        <span className="italic font-serif text-[12px]">
-                                            {formatAmountInWords(selectedInvoice.total_amount)}
-                                        </span>
+                                    <div class="grid grid-cols-2 gap-6 my-6 text-sm">
+                                        <div>
+                                            <h4 class="font-bold text-slate-400 uppercase text-xs tracking-wider mb-1">Invoiced To:</h4>
+                                            <p class="font-bold text-slate-800">{selectedInvoice.customer || 'Walking Customer'}</p>
+                                            {selectedInvoice.shopName && <p class="text-slate-600">{selectedInvoice.shopName}</p>}
+                                            {selectedInvoice.address && <p class="text-slate-500 text-xs mt-0.5">{selectedInvoice.address}</p>}
+                                            {selectedInvoice.phone && <p class="text-slate-500 text-xs">Phone: {selectedInvoice.phone}</p>}
+                                        </div>
+                                        <div class="text-right">
+                                            <h4 class="font-bold text-slate-400 uppercase text-xs tracking-wider mb-1">Sales Representative:</h4>
+                                            <p class="font-medium text-slate-800">{selectedInvoice.employee || 'Direct Sale'}</p>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        )}
 
-                        {!selectedInvoice && view === 'dashboard' && (
-                            <div>
-                                <h2 className="text-3xl font-bold mb-6">Business Dashboard Overview</h2>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                        <p className="text-slate-400 text-sm">Total Revenue Pool</p>
-                                        <h3 className="text-3xl font-bold text-emerald-400 mt-2">Rs. {totalRevenue.toFixed(2)}</h3>
-                                    </div>
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                        <p className="text-slate-400 text-sm">Gross Net Margin</p>
-                                        <h3 className="text-3xl font-bold text-blue-400 mt-2">Rs. {totalProfit.toFixed(2)}</h3>
-                                    </div>
-                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                        <p className="text-slate-400 text-sm">Active SKU Items</p>
-                                        <h3 className="text-3xl font-bold text-amber-400 mt-2">{(db.products || []).length} Items</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {!selectedInvoice && view === 'orders' && (
-                            <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">සියලුම ඉන්වොයිසි සහ ඇණවුම් (Invoices System Log)</h2>
-                                    <button onClick={() => { setView('add_order'); setCart([]); }} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Issue New Invoice</button>
-                                </div>
-                                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-800 border-b border-slate-700">
-                                            <tr>
-                                                <th className="p-4">Invoice ID / No</th>
-                                                <th className="p-4">Customer Store Entity</th>
-                                                <th className="p-4">Date Attached</th>
-                                                <th className="p-4">Net Value</th>
-                                                <th className="p-4">Sales rep</th>
-                                                <th className="p-4 text-center">Actions</th>
+                                    <table class="w-full text-left text-sm border-collapse my-6">
+                                        <thead>
+                                            <tr class="border-b border-slate-300 bg-slate-50 text-slate-700 font-semibold">
+                                                <th class="py-2.5 px-2">Code</th>
+                                                <th class="py-2.5 px-2">Item Description</th>
+                                                <th class="py-2.5 px-2 text-right">Rate</th>
+                                                <th class="py-2.5 px-2 text-center">Qty</th>
+                                                <th class="py-2.5 px-2 text-right">Amount</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {(db.orders || []).map(o => (
-                                                <tr key={o.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                                                    <td className="p-4 font-mono text-blue-400 font-bold">{o.order_number}</td>
-                                                    <td className="p-4 font-semibold">{o.customer_name}</td>
-                                                    <td className="p-4 font-mono text-sm">{o.date}</td>
-                                                    <td className="p-4 text-emerald-400 font-bold">Rs. {o.total_amount.toFixed(2)}</td>
-                                                    <td className="p-4 text-slate-400">{o.employee_name}</td>
-                                                    <td className="p-4 text-center">
-                                                        <button onClick={() => setSelectedInvoice(o)} className="bg-blue-600 hover:bg-blue-700 font-bold px-3 py-1 rounded-xl text-xs text-white">🖨️ View & Print</button>
-                                                    </td>
+                                            {(selectedInvoice.products || []).map((p, i) => (
+                                                <tr key={i} class="border-b border-slate-200 text-slate-800">
+                                                    <td class="py-3 px-2 font-mono text-xs">{p.itemCode}</td>
+                                                    <td class="py-3 px-2 font-medium">{p.itemName}</td>
+                                                    <td class="py-3 px-2 text-right">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</td>
+                                                    <td class="py-3 px-2 text-center">{p.quantity}</td>
+                                                    <td class="py-3 px-2 text-right font-semibold">Rs. {((Number(p.sellingPrice) || 0) * (Number(p.quantity) || 0)).toFixed(2)}</td>
                                                 </tr>
                                             ))}
-                                            {(!db.orders || db.orders.length === 0) && (
-                                                <tr>
-                                                    <td colSpan="6" className="p-8 text-center text-slate-500 italic">පද්ධතියේ කිසිදු ඇණවුමක් සටහන් වී නොමැත.</td>
+                                        </tbody>
+                                    </table>
+
+                                    <div class="flex flex-col items-end gap-2 border-t border-slate-200 pt-4">
+                                        <div class="w-full max-w-xs flex justify-between text-base font-bold text-slate-900">
+                                            <span>Grand Total:</span>
+                                            <span>Rs. {(Number(selectedInvoice.total_amount) || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-8 pt-4 border-t border-dashed border-slate-200 text-xs">
+                                        <p class="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Amount in Words:</p>
+                                        <p class="italic text-slate-700 font-medium mt-0.5">{numberToWords(Number(selectedInvoice.total_amount) || 0)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* DASHBOARD VIEW */}
+                        {!selectedInvoice && view === 'dashboard' && (
+                            <div class="space-y-6">
+                                <h2 class="text-2xl font-bold text-indigo-400">Dashboard Overview</h2>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Total Revenue</p><p class="text-2xl font-bold text-emerald-400 mt-1">Rs. {totalRevenue.toFixed(2)}</p></div>
+                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Total Net Profit</p><p class="text-2xl font-bold text-indigo-400 mt-1">Rs. {totalProfit.toFixed(2)}</p></div>
+                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Active Items</p><p class="text-2xl font-bold text-amber-400 mt-1">{safeProducts.length} SKU</p></div>
+                                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><p class="text-xs text-slate-400 font-semibold uppercase">Low Stock Alerts</p><p class="text-2xl font-bold text-rose-500 mt-1">{lowStockItems.length} Items</p></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CREATE INVOICE VIEW */}
+                        {!selectedInvoice && view === 'add_order' && (
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div class="lg:col-span-2 space-y-4">
+                                    <h2 class="text-xl font-bold text-indigo-400">Select Products for Invoice</h2>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {safeProducts.map(p => (
+                                            <div key={p.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                                                <div>
+                                                    <p class="font-bold text-sm">{p.itemName}</p>
+                                                    <p class="text-xs text-slate-500 font-mono">{p.itemCode} | Stock: {p.quantity}</p>
+                                                    <p class="text-sm font-semibold text-emerald-400 mt-1">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</p>
+                                                </div>
+                                                <button onClick={() => addToCart(p)} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Add</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 h-fit">
+                                    <h3 class="font-bold text-base text-slate-300 border-b border-slate-800 pb-2">Invoice Cart</h3>
+                                    
+                                    <select value={orderCustomerId} onChange={e => setOrderCustomerId(e.target.value)} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-white focus:outline-none">
+                                        <option value="">-- Choose Customer --</option>
+                                        {safeCustomers.map(c => <option key={c.id} value={c.id}>{c.shopName} ({c.name})</option>)}
+                                    </select>
+
+                                    <select value={orderEmployeeId} onChange={e => setOrderEmployeeId(e.target.value)} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-white focus:outline-none">
+                                        <option value="">-- Choose Sales Rep --</option>
+                                        {safeEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                    </select>
+
+                                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                                        {cart.map(item => (
+                                            <div key={item.id} class="flex justify-between items-center text-xs bg-slate-950 p-2 rounded-lg">
+                                                <div class="flex-1 pr-2">
+                                                    <p class="font-semibold">{item.itemName}</p>
+                                                    <p class="text-slate-500">Rs. {(Number(item.sellingPrice) || 0).toFixed(2)}</p>
+                                                </div>
+                                                <input type="number" min="0" value={item.qty} onChange={e => updateCartQty(item.id, e.target.value)} class="w-12 bg-slate-900 border border-slate-800 text-center rounded p-1 text-white font-semibold" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={submitOrder} class="w-full bg-emerald-600 hover:bg-emerald-700 font-bold py-2.5 rounded-lg text-sm transition-colors mt-2">Generate Invoice</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* INVOICE HISTORY VIEW */}
+                        {!selectedInvoice && view === 'orders' && (
+                            <div class="space-y-4">
+                                <h2 class="text-xl font-bold text-indigo-400">All Generated Invoices</h2>
+                                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+                                    <table class="w-full text-left text-sm border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-slate-800 text-slate-400 bg-slate-900/50 font-medium text-xs uppercase tracking-wider">
+                                                <th class="p-3.5">Invoice No</th>
+                                                <th class="p-3.5">Date</th>
+                                                <th class="p-3.5">Customer / Shop</th>
+                                                <th class="p-3.5 text-right">Total Amount</th>
+                                                <th class="p-3.5 text-center">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {safeOrders.map(o => (
+                                                <tr key={o.id} class="border-b border-slate-800 hover:bg-slate-800/30">
+                                                    <td class="p-3.5 font-bold text-indigo-400">{o.invoiceNo}</td>
+                                                    <td class="p-3.5 text-slate-400">{o.date}</td>
+                                                    <td class="p-3.5 font-medium">{o.customer} <span class="text-xs text-slate-500 block">{o.shopName}</span></td>
+                                                    <td class="p-3.5 text-right font-bold text-emerald-400">Rs. {(Number(o.total_amount) || 0).toFixed(2)}</td>
+                                                    <td class="p-3.5 text-center"><button onClick={() => setSelectedInvoice(o)} class="bg-slate-800 hover:bg-slate-700 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors">View / Print</button></td>
                                                 </tr>
-                                            )}
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         )}
 
-                        {!selectedInvoice && view === 'add_order' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-1 bg-slate-900 p-6 rounded-2xl border border-slate-800 h-fit">
-                                    <h2 className="text-xl font-bold mb-4 text-blue-400">නව ඇණවුමක් ඇතුළත් කිරීම</h2>
-                                    
-                                    <label className="text-xs text-slate-400 block mb-1 font-semibold">1. පාරිභෝගිකයා තෝරන්න:</label>
-                                    <select disabled={cart.length > 0} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white mb-4 disabled:opacity-50" value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} required>
-                                        <option value="">-- Select Customer --</option>
-                                        {(db.customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-
-                                    <form onSubmit={addItemToCart} className="space-y-4 pt-2 border-t border-slate-800">
-                                        <label className="text-xs text-slate-400 block mb-1 font-semibold">2. භාණ්ඩය තෝරන්න:</label>
-                                        <select className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" value={orderForm.itemId} onChange={e => setOrderForm({...orderForm, itemId: e.target.value})} required>
-                                            <option value="">-- Select Item --</option>
-                                            {(db.products || []).map(p => <option key={p.id} value={p.id}>{p.itemName} (Stock: {p.quantity})</option>)}
-                                        </select>
-                                        
-                                        <div>
-                                            <label className="text-xs text-slate-400 block mb-1 font-semibold">ප්‍රමාණය (Quantity):</label>
-                                            <input type="number" min="1" value={orderForm.quantity} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setOrderForm({...orderForm, quantity: e.target.value})} required />
-                                        </div>
-
-                                        <div>
-                                            <label className="text-xs text-slate-400 block mb-1 font-semibold">භාණ්ඩයේ වට්ටම (Item Discount %):</label>
-                                            <input type="number" min="0" max="100" value={orderForm.discountPercent} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setOrderForm({...orderForm, discountPercent: parseFloat(e.target.value) || 0})} />
-                                        </div>
-
-                                        <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-700 transition">+ Add Item to Basket</button>
-                                    </form>
-                                </div>
-
-                                <div className="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-slate-200 mb-4 border-b border-slate-800 pb-2">ඇණවුම් විස්තර එකතුව</h2>
-
-                                        {cart.length === 0 ? (
-                                            <div className="text-center py-12 text-slate-500 italic">මල්ල හිස්ව පවතී. ඉහත පියවරෙන් භාණ්ඩ එකතු කරන්න.</div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {cart.map((item, index) => (
-                                                    <div key={index} className="bg-slate-800 p-4 rounded-xl flex justify-between items-center border border-slate-700">
-                                                        <div>
-                                                            <h4 className="font-bold text-slate-200">{item.item_name}</h4>
-                                                            <p className="text-xs text-slate-400">Code: {item.item_code} | Qty: {item.quantity} x Rs. {item.selling_price} (Disc: {item.discount_rate}%)</p>
-                                                        </div>
-                                                        <div className="text-right flex items-center space-x-4">
-                                                            <span className="font-mono text-emerald-400 font-bold">Rs. {item.total_amount.toFixed(2)}</span>
-                                                            <button onClick={() => setCart(cart.filter((_, i) => i !== index))} className="text-red-400 text-xs bg-red-500/10 px-2 py-1 rounded hover:bg-red-500 hover:text-white">Remove</button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {cart.length > 0 && (
-                                        <div className="mt-6 border-t border-slate-800 pt-4 space-y-4">
-                                            <div>
-                                                <label className="text-xs text-slate-400 block mb-1 font-semibold">සම්පූර්ණ බිලට අමතර වට්ටම් (Additional Discount %):</label>
-                                                <input type="number" min="0" max="100" value={additionalDiscountPercent} className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono text-sm" onChange={e => setAdditionalDiscountPercent(parseFloat(e.target.value) || 0)} />
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-slate-400 text-sm">Grand Net Amount:</span>
-                                                <span className="text-2xl font-mono font-black text-emerald-400">
-                                                    Rs. {(cart.reduce((s, i) => s + i.total_amount, 0) - (cart.reduce((s, i) => s + i.total_amount, 0) * additionalDiscountPercent / 100)).toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <button onClick={submitCompleteOrder} className="w-full bg-emerald-600 p-4 rounded-xl font-black tracking-wide hover:bg-emerald-700 shadow-xl transition text-center text-lg">
-                                                ✅ GEN INVOICE & SAVE
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
+                        {/* PRODUCT STOCK MANAGEMENT */}
                         {!selectedInvoice && view === 'products' && (
-                            <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">භාණ්ඩ ගබඩා කළමනාකරණය (Stock Items)</h2>
-                                    <button onClick={() => setView('add_product')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Add New Product</button>
+                            <div class="space-y-6">
+                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Product Inventory</h2><button onClick={() => setView('add_product')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add New Product</button></div>
+                                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+                                    <table class="w-full text-left text-sm border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-slate-800 text-slate-400 bg-slate-900/50 text-xs font-medium uppercase">
+                                                <th class="p-3.5">Code</th>
+                                                <th class="p-3.5">Item Name</th>
+                                                <th class="p-3.5 text-right">Cost</th>
+                                                <th class="p-3.5 text-right">Selling Price</th>
+                                                <th class="p-3.5 text-center">Stock</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {safeProducts.map(p => (
+                                                <tr key={p.id} class="border-b border-slate-800 hover:bg-slate-800/30">
+                                                    <td class="p-3.5 font-mono text-xs text-slate-400">{p.itemCode}</td>
+                                                    <td class="p-3.5 font-semibold">{p.itemName}</td>
+                                                    <td class="p-3.5 text-right text-slate-400">Rs. {(Number(p.costPrice) || 0).toFixed(2)}</td>
+                                                    <td class="p-3.5 text-right text-emerald-400 font-bold">Rs. {(Number(p.sellingPrice) || 0).toFixed(2)}</td>
+                                                    <td class="p-3.5 text-center"><span class={`px-2 py-1 rounded text-xs font-bold ${p.quantity <= p.lowStock ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-400'}`}>{p.quantity}</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {(db.products || []).map(p => (
-                                        <div key={p.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                            <h4 className="text-lg font-bold">{p.itemName}</h4>
-                                            <p className="text-xs text-slate-500 font-mono">CODE: {p.itemCode}</p>
-                                            <div className="mt-4 flex justify-between text-sm items-center">
-                                                <div>
-                                                    <p className="text-xs text-slate-500">List Selling Price</p>
-                                                    <p className="text-emerald-400 font-bold text-base">Rs. {(p.sellingPrice || 0).toFixed(2)}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-xs text-slate-500">Available Inventory</p>
-                                                    <p className="font-bold text-slate-200 text-base">{p.quantity} Pcs</p>
-                                                </div>
+                            </div>
+                        )}
+
+                        {/* ADD PRODUCT FORM */}
+                        {!selectedInvoice && view === 'add_product' && (
+                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                                <h2 class="text-xl font-bold text-indigo-400">Add New Product</h2>
+                                <form onSubmit={e => {
+                                    e.preventDefault();
+                                    const newP = { id: Date.now(), itemName: productForm.itemName, itemCode: productForm.itemCode, costPrice: Number(productForm.costPrice), sellingPrice: Number(productForm.sellingPrice), quantity: Number(productForm.quantity), lowStock: Number(productForm.lowStock) || 5 };
+                                    setDb({ ...db, products: [...safeProducts, newP] });
+                                    setProductForm({ itemName: '', itemCode: '', costPrice: '', sellingPrice: '', quantity: '', lowStock: '' });
+                                    setView('products');
+                                }} class="space-y-3">
+                                    <input type="text" placeholder="Item Name" value={productForm.itemName} onChange={e => setProductForm({...productForm, itemName: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Item Code" value={productForm.itemCode} onChange={e => setProductForm({...productForm, itemCode: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="number" placeholder="Cost Price (Rs.)" value={productForm.costPrice} onChange={e => setProductForm({...productForm, costPrice: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="number" placeholder="Selling Price (Rs.)" value={productForm.sellingPrice} onChange={e => setProductForm({...productForm, sellingPrice: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="number" placeholder="Initial Quantity" value={productForm.quantity} onChange={e => setProductForm({...productForm, quantity: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Product</button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* CUSTOMERS VIEW */}
+                        {!selectedInvoice && view === 'customers' && (
+                            <div class="space-y-6">
+                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Customer Directory</h2><button onClick={() => setView('add_customer')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add Customer</button></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {safeCustomers.map(c => (
+                                        <div key={c.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-1">
+                                            <p class="font-bold text-indigo-400 text-base">{c.shopName}</p>
+                                            <p class="text-sm font-medium">{c.name}</p>
+                                            <p class="text-xs text-slate-500">{c.address}</p>
+                                            <p class="text-xs text-slate-400 pt-1 font-mono">{c.phone}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ADD CUSTOMER FORM */}
+                        {!selectedInvoice && view === 'add_customer' && (
+                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                                <h2 class="text-xl font-bold text-indigo-400">Add New Customer</h2>
+                                <form onSubmit={e => {
+                                    e.preventDefault();
+                                    const newC = { id: Date.now(), name: customerForm.name, shopName: customerForm.shopName, address: customerForm.address, phone: customerForm.phone };
+                                    setDb({ ...db, customers: [...safeCustomers, newC] });
+                                    setCustomerForm({ name: '', shopName: '', address: '', phone: '' });
+                                    setView('customers');
+                                }} class="space-y-3">
+                                    <input type="text" placeholder="Shop / Business Name" value={customerForm.shopName} onChange={e => setCustomerForm({...customerForm, shopName: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Owner / Contact Person Name" value={customerForm.name} onChange={e => setCustomerForm({...customerForm, name: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Business Address" value={customerForm.address} onChange={e => setCustomerForm({...customerForm, address: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Phone Number" value={customerForm.phone} onChange={e => setCustomerForm({...customerForm, phone: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Customer</button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* EMPLOYEES VIEW */}
+                        {!selectedInvoice && view === 'employees' && (
+                            <div class="space-y-6">
+                                <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-indigo-400">Employees / Sales Reps</h2><button onClick={() => setView('add_employee')} class="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">+ Add Employee</button></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {safeEmployees.map(e => (
+                                        <div key={e.id} class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                                            <div>
+                                                <p class="font-bold text-base text-slate-200">{e.name}</p>
+                                                <p class="text-xs text-indigo-400 font-medium">{e.role}</p>
+                                                <p class="text-xs text-slate-500 font-mono mt-1">{e.phone}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -580,75 +545,21 @@
                             </div>
                         )}
 
-                        {!selectedInvoice && view === 'customers' && (
-                            <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">පාරිභෝගික නාමාවලිය (Customers Directory)</h2>
-                                    <button onClick={() => setView('add_customer')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Add New Profile</button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {(db.customers || []).map(c => (
-                                        <div key={c.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                                            <h3 className="text-xl font-bold text-blue-400">{c.name}</h3>
-                                            <p className="text-sm text-slate-300 mt-2 font-mono">📞 Phone: {c.phone}</p>
-                                            <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">📍 Address: {c.address}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {view === 'add_product' && (
-                            <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">නව භාණ්ඩයක් ඇතුළත් කිරීම</h2>
-                                <form onSubmit={handleAddProduct} className="space-y-4">
-                                    <input type="text" placeholder="Item Name (e.g., Impact Drill)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setProdForm({...prodForm, itemName: e.target.value})} required />
-                                    <input type="text" placeholder="Item Code SKU (e.g., S0200103)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setProdForm({...prodForm, itemCode: e.target.value})} required />
-                                    <input type="number" placeholder="Cost Price (Rs.)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setProdForm({...prodForm, costPrice: parseFloat(e.target.value)})} required />
-                                    <input type="number" placeholder="List Selling Price (Rs.)" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setProdForm({...prodForm, sellingPrice: parseFloat(e.target.value)})} required />
-                                    <input type="number" placeholder="Stock Units Qty" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setProdForm({...prodForm, quantity: parseInt(e.target.value)})} required />
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-700 transition">Save Product to Inventory</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {view === 'add_customer' && (
-                            <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">නව පාරිභෝගික පැතිකඩක් සෑදීම</h2>
-                                <form onSubmit={handleAddCustomer} className="space-y-4">
-                                    <input type="text" placeholder="Customer Name / Shop Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setCustForm({...custForm, name: e.target.value})} required />
-                                    <input type="text" placeholder="Contact Number" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setCustForm({...custForm, phone: e.target.value})} required />
-                                    <textarea placeholder="Billing Address" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white h-24" onChange={e => setCustForm({...custForm, address: e.target.value})} required></textarea>
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-700 transition">Save Customer Profile</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {view === 'employees' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
-                                    <h2 className="text-2xl font-bold">Sales Rep / Staff Login Logins</h2>
-                                    <button onClick={() => setView('add_employee')} className="bg-blue-600 px-4 py-2 rounded-xl font-semibold text-sm">+ Create Staff Portal Login</button>
-                                </div>
-                                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                                    {(db.employees || []).map(emp => (
-                                        <div key={emp.id} className="p-3 border-b border-slate-800 flex justify-between">
-                                            <span>👤 Name: <b>{emp.fullName}</b></span>
-                                            <span className="text-slate-500">System Username: <b className="text-slate-300">{emp.username}</b></span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {view === 'add_employee' && (
-                            <div className="max-w-lg bg-slate-900 p-8 rounded-2xl border border-slate-800 mx-auto">
-                                <h2 className="text-xl font-bold mb-4">Create Employee Credentials</h2>
-                                <form onSubmit={handleAddEmployee} className="space-y-4">
-                                    <input type="text" placeholder="Employee Full Name" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setEmpForm({...empForm, fullName: e.target.value})} required />
-                                    <input type="text" placeholder="Assigned Username" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setEmpForm({...empForm, username: e.target.value})} required />
-                                    <input type="password" placeholder="Temporary Password" className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white" onChange={e => setEmpForm({...empForm, password: e.target.value})} required />
-                                    <button type="submit" className="w-full bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-700 transition">Generate User Profile</button>
+                        {/* ADD EMPLOYEE FORM */}
+                        {!selectedInvoice && view === 'add_employee' && (
+                            <div class="max-w-xl bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                                <h2 class="text-xl font-bold text-indigo-400">Add New Employee</h2>
+                                <form onSubmit={e => {
+                                    e.preventDefault();
+                                    const newE = { id: Date.now(), name: employeeForm.name, role: employeeForm.role, phone: employeeForm.phone };
+                                    setDb({ ...db, employees: [...safeEmployees, newE] });
+                                    setEmployeeForm({ name: '', role: '', phone: '' });
+                                    setView('employees');
+                                }} class="space-y-3">
+                                    <input type="text" placeholder="Full Name" value={employeeForm.name} onChange={e => setEmployeeForm({...employeeForm, name: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Role (e.g. Sales Rep)" value={employeeForm.role} onChange={e => setEmployeeForm({...employeeForm, role: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <input type="text" placeholder="Phone Number" value={employeeForm.phone} onChange={e => setEmployeeForm({...employeeForm, phone: e.target.value})} class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-white focus:outline-none" required />
+                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold p-2.5 rounded-lg text-sm transition-colors">Save Employee</button>
                                 </form>
                             </div>
                         )}
